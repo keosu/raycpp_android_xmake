@@ -1,0 +1,115 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build for Windows",
+            "type": "shell",
+            "command": "xmake",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build for Android (ARM64)",
+            "type": "shell",
+            "command": "xmake",
+            "args": [
+                "config",
+                "-p",
+                "android",
+                "-a",
+                "arm64-v8a",
+                "-m",
+                "release",
+                "&&",
+                "xmake"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "dependsOn": "Check Android NDK"
+        },
+        {
+            "label": "Build for Android (ARM32)",
+            "type": "shell",
+            "command": "xmake",
+            "args": [
+                "config",
+                "-p",
+                "android",
+                "-a",
+                "armeabi-v7a",
+                "-m",
+                "release",
+                "&&",
+                "xmake"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "dependsOn": "Check Android NDK"
+        },
+        {
+            "label": "Check Android NDK",
+            "type": "shell",
+            "command": "echo",
+            "args": [
+                "Checking Android NDK..."
+            ],
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Clean Build",
+            "type": "shell",
+            "command": "xmake",
+            "args": ["clean"],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run (Windows only)",
+            "type": "shell",
+            "command": "xmake",
+            "args": ["run"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": [],
+            "dependsOn": "Build for Windows"
+        }
+    ]
+}
