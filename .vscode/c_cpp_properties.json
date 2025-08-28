@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/Users/Administrator/AppData/Local/.xmake/packages/r/raylib-cpp/v5.5.0/c09e9888c7a24446bfbe7fc74d51fc0f/include",
+                "C:/Users/Administrator/AppData/Local/.xmake/packages/r/raylib/5.5/ff3f87ca824444c78f4ea6c42aea7e19/include"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "windowsSdkVersion": "10.0.26100.0",
+            "compilerPath": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-msvc-x64",
+            "compileCommands": "${workspaceFolder}/.vscode/compile_commands.json"
+        }
+    ],
+    "version": 4
+}
