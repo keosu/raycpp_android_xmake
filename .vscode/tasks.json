@@ -18,20 +18,10 @@
             "problemMatcher": []
         },
         {
-            "label": "Build for Android (ARM64)",
+            "label": "Check Android Environment",
             "type": "shell",
-            "command": "xmake",
-            "args": [
-                "config",
-                "-p",
-                "android",
-                "-a",
-                "arm64-v8a",
-                "-m",
-                "release",
-                "&&",
-                "xmake"
-            ],
+            "command": "powershell",
+            "args": ["-ExecutionPolicy", "Bypass", "-File", "android.ps1", "check"],
             "group": "build",
             "presentation": {
                 "echo": true,
@@ -39,24 +29,13 @@
                 "focus": false,
                 "panel": "shared"
             },
-            "problemMatcher": [],
-            "dependsOn": "Check Android NDK"
+            "problemMatcher": []
         },
         {
-            "label": "Build for Android (ARM32)",
+            "label": "Build Android Library",
             "type": "shell",
-            "command": "xmake",
-            "args": [
-                "config",
-                "-p",
-                "android",
-                "-a",
-                "armeabi-v7a",
-                "-m",
-                "release",
-                "&&",
-                "xmake"
-            ],
+            "command": "powershell",
+            "args": ["-ExecutionPolicy", "Bypass", "-File", "android.ps1", "build"],
             "group": "build",
             "presentation": {
                 "echo": true,
@@ -64,19 +43,31 @@
                 "focus": false,
                 "panel": "shared"
             },
-            "problemMatcher": [],
-            "dependsOn": "Check Android NDK"
+            "problemMatcher": []
         },
         {
-            "label": "Check Android NDK",
+            "label": "Build APK",
             "type": "shell",
-            "command": "echo",
-            "args": [
-                "Checking Android NDK..."
-            ],
+            "command": "powershell",
+            "args": ["-ExecutionPolicy", "Bypass", "-File", "android.ps1", "apk"],
+            "group": "build",
             "presentation": {
                 "echo": true,
-                "reveal": "silent",
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Install and Run APK",
+            "type": "shell",
+            "command": "powershell",
+            "args": ["-ExecutionPolicy", "Bypass", "-File", "android.ps1", "run"],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
                 "focus": false,
                 "panel": "shared"
             },
@@ -85,8 +76,8 @@
         {
             "label": "Clean Build",
             "type": "shell",
-            "command": "xmake",
-            "args": ["clean"],
+            "command": "powershell",
+            "args": ["-ExecutionPolicy", "Bypass", "-File", "android.ps1", "clean"],
             "group": "build",
             "presentation": {
                 "echo": true,

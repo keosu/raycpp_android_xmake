@@ -6,31 +6,60 @@
 
 1. **Android NDK**: 需要安装 Android NDK（已验证 NDK r27d 可用）
    - 验证过的路径：`C:\Users\Administrator\progs\android-ndk-r27d\`
-2. **环境变量**: 设置 `ANDROID_HOME` 环境变量指向 Android SDK 根目录（可选，脚本中已配置）
-3. **xmake**: 确保安装了最新版本的 xmake
+2. **Android SDK**: 需要完整的 Android SDK（用于 APK 打包）
+   - 已验证的路径：`C:/Users/Administrator/AppData/Local/Android/Sdk`
+   - 包含 build-tools（aapt, zipalign, apksigner 等）
+   - 包含 platform（android.jar）
+3. **Java 环境**: 需要 Java 开发环境（用于 Android 构建）
+   - 已验证的路径：`C:/zulu-24`
+   - 支持 Java 8+ 版本
+4. **环境变量**: 设置 `ANDROID_HOME` 环境变量指向 Android SDK 根目录（可选，脚本中已配置）
+5. **xmake**: 确保安装了最新版本的 xmake
+6. **7zip**: APK 打包需要 7zip 或 zip 工具
 
 ## 构建步骤
 
-### 方式一：使用构建脚本（推荐）
+### 方式一：使用 PowerShell 脚本（推荐）
 
-```bash
-# Windows
-.\build_android.bat
+```powershell
+# 检查环境配置
+.\android.ps1 check
 
-# Linux/macOS
-./build_android.sh
+# 构建 Android 共享库
+.\android.ps1 build
+
+# 构建完整 APK
+.\android.ps1 apk
+
+# 安装并运行 APK
+.\android.ps1 run
+
+# 清理构建文件
+.\android.ps1 clean
 ```
 
-### 方式二：手动构建
+### 方式二：使用 VS Code 任务
 
-1. **配置 Android 构建**:
-```bash
-xmake config -p android -a arm64-v8a -m release --ndk=/path/to/android-ndk
-```
+在 VS Code 中使用 `Ctrl+Shift+P` → "Tasks: Run Task" 选择以下任务：
+- "Check Android Environment" - 检查环境配置
+- "Build Android Library" - 构建共享库
+- "Build APK" - 构建完整 APK
+- "Install and Run APK" - 安装并运行
 
-2. **构建项目**:
+### 方式三：手动构建
+
 ```bash
+# 设置环境变量
+$env:JAVA_HOME="C:/zulu-24"
+
+# 配置 Android 构建
+xmake config -p android -a arm64-v8a -m release --ndk="C:\Users\Administrator\progs\android-ndk-r27d" --android_sdk="C:/Users/Administrator/AppData/Local/Android/Sdk"
+
+# 构建项目
 xmake
+
+# 打包 APK
+xmake install -o build cppray
 ```
 
 ## 支持的架构
@@ -62,13 +91,20 @@ xmake config -p android -a armeabi-v7a
 
 ## 输出文件
 
+### 共享库文件
 构建成功后，生成的共享库文件位于：
 - `build/android/{架构}/release/libcppray.so`
+
+### APK 文件（完整应用）
+使用 `xmake install` 打包后，生成的 APK 文件位于：
+- `build/cppray.apk`
 
 **验证结果**：
 - ✅ NDK r27d (27.3.13750724) 验证可用
 - ✅ 成功构建 ARM64 版本：`libcppray.so` (932KB)
 - ✅ 构建脚本正常工作
+- ✅ **APK 打包成功**：`cppray.apk` (398KB)
+- ✅ 支持 Android SDK 36 和 Build Tools 36.0.0
 
 ## 集成到 Android 项目
 
@@ -80,9 +116,16 @@ xmake config -p android -a armeabi-v7a
 
 ### 常见问题
 
-1. **NDK 路径错误**: 确保 `ANDROID_HOME` 环境变量正确设置
-2. **架构不匹配**: 确保目标设备支持所选择的架构
-3. **依赖问题**: 确保本地仓库配置正确
+1. **执行策略错误**: 如果遇到 "无法加载文件" 错误，请以管理员身份运行 PowerShell 并执行：
+   ```powershell
+   Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope CurrentUser
+   ```
+
+2. **NDK 路径错误**: 确保 `ANDROID_HOME` 环境变量正确设置
+
+3. **架构不匹配**: 确保目标设备支持所选择的架构
+
+4. **依赖问题**: 确保本地仓库配置正确
 
 ### 调试信息
 
@@ -91,8 +134,35 @@ xmake config -p android -a armeabi-v7a
 xmake -vD
 ```
 
+或者使用 PowerShell 脚本的详细模式：
+```powershell
+.\android.ps1 build -Verbose
+```
+
 ## 注意事项
 
 - 这是一个实验性的 Android 支持实现
 - 某些 raylib 功能可能在 Android 上有限制
 - 建议在实际设备上测试，而不是仅在模拟器中测试
+
+## APK 打包和部署
+
+### 直接运行 APK
+使用 androidcpp 规则，可以直接生成可安装的 APK 文件：
+
+```bash
+# 构建并打包 APK
+xmake config -p android -a arm64-v8a --android_sdk="path/to/sdk"
+xmake
+xmake install -o build cppray
+
+# 安装并运行到设备
+xmake run cppray
+```
+
+### APK 功能特性
+- ✅ 自动打包共享库
+- ✅ 资源文件管理
+- ✅ 自动签名（开发版本）
+- ✅ ADB 自动安装和启动
+- ✅ 支持 NativeActivity 框架
