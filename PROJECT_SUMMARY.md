@@ -60,7 +60,7 @@ cppray/
 ### APK 应用
 - **文件**: `build/cppray.apk`
 - **大小**: 388KB
-- **包名**: `com.raylib.cppray`
+- **包名**: `com.game.raycpp`
 - **目标 SDK**: Android 36 (API Level 36)
 - **最小 SDK**: Android 21 (API Level 21)
 
