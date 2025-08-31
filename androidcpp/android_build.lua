@@ -12,7 +12,7 @@ function main(target, android_sdk_version, android_manifest, android_res, androi
     os.cp(path.join(target:installdir(), "lib", "*.so"), libarchpath)
     
     
-    -- 正确处理目标文件名，确保重命名为libmain.so
+    -- rename to libmain.so
     local target_filename = target:filename()
     local source_lib = path.join(libarchpath, target_filename)
     local dest_lib = path.join(libarchpath, "libmain.so")
@@ -39,7 +39,9 @@ function main(target, android_sdk_version, android_manifest, android_res, androi
 
     local aapt = path.join(android_sdkdir, "build-tools", android_build_toolver, "aapt" .. (is_host("windows") and ".exe" or ""))
 
-    local resonly_apk = path.join(outputtemppath, "res_only.zip")
+    
+    --------------------------------------- pack resources 
+    local resonly_apk = path.join(outputtemppath, "res_only.apk")
     local aapt_argv = {"package", "-f",
         "-M", android_manifest,
         "-I", androidjar,
@@ -59,17 +61,14 @@ function main(target, android_sdk_version, android_manifest, android_res, androi
     cprint("${green}packing resources...")
     os.vrunv(aapt, aapt_argv)
 
-    import("lib.detect.find_tool")
-    local zip = find_tool("7z") or find_tool("zip") or find_tool("jar")
-    assert(zip, "zip or jar tool not found!")
-    local zip_argv = { "a", "-tzip", "-r", 
-        resonly_apk,
-        path.join(".", libpath)
-    }
-
-    cprint("${green}archiving libs...")
-    os.vrunv(zip.program or zip.name, zip_argv)
-
+    
+    --------------------------------------- pack libs 
+    cprint("${green}packing libs...")
+    local curdir = os.cd(outputpath) 
+    os.vrunv(aapt,{"add", "temp/res_only.apk", "lib/arm64-v8a/libmain.so"})
+    os.cd(curdir) 
+    
+    --------------------------------------- align apk
     local aligned_apk = path.join(outputtemppath, "unsigned.apk")
     local zipalign = path.join(android_sdkdir, "build-tools", android_build_toolver, "zipalign" .. (is_host("windows") and ".exe" or ""))
     local zipalign_argv = {
@@ -80,6 +79,8 @@ function main(target, android_sdk_version, android_manifest, android_res, androi
     cprint("${green}align apk...")
     os.vrunv(zipalign, zipalign_argv)
 
+    
+    --------------------------------------- sign apk
     local final_output_path = outputtemppath
     local final_apk = path.join(final_output_path, target:basename() .. ".apk")
     local apksigner = path.join(android_sdkdir, "build-tools", android_build_toolver, "apksigner" .. (is_host("windows") and ".bat" or ""))
