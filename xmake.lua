@@ -1,8 +1,5 @@
 add_rules("mode.debug", "mode.release")
 
--- 添加本地仓库
-add_repositories("local-repo local_repo")
-
 -- 包含 androidcpp 规则
 includes("androidcpp")
 
@@ -11,7 +8,7 @@ if is_plat("android") then
     set_toolchains("ndk", {sdkver = "21"})
 end
 
-add_requires("raylib-cpp")
+add_requires("raylib-cpp 5.5.0")
 
 target("cppray")
     set_kind("binary")

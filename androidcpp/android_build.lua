@@ -11,30 +11,6 @@ function main(target, android_sdk_version, android_manifest, android_res, androi
     os.mkdir(libarchpath)
     os.cp(path.join(target:installdir(), "lib", "*.so"), libarchpath)
     
-    -- 添加libc++_shared.so到APK中
-    import("core.tool.toolchain")
-    local toolchain_ndk = toolchain.load("ndk", {plat = target:plat(), arch = target:arch()})
-    local ndk = path.translate(assert(toolchain_ndk:config("ndk"), "cannot get NDK!"))
-    -- 打印调试信息
-    print("Target arch: " .. target:arch())
-    -- 构造libc++_shared.so的路径
-    local libcxx_shared_path = path.join(ndk, "toolchains", "llvm", "prebuilt", "windows-x86_64", "sysroot", "usr", "lib", target:arch(), "libc++_shared.so")
-    print("Looking for libc++_shared.so at: " .. libcxx_shared_path)
-    if os.exists(libcxx_shared_path) then
-        print("Found libc++_shared.so, copying to APK")
-        os.cp(libcxx_shared_path, libarchpath)
-    else
-        print("libc++_shared.so not found at expected location")
-        -- 尝试硬编码的路径
-        local hardcoded_path = "D:\\Progs\\ndk\\27.0\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot\\usr\\lib\\aarch64-linux-android\\libc++_shared.so"
-        print("Trying hardcoded path: " .. hardcoded_path)
-        if os.exists(hardcoded_path) then
-            print("Found libc++_shared.so at hardcoded path, copying to APK")
-            os.cp(hardcoded_path, libarchpath)
-        else
-            print("libc++_shared.so not found at hardcoded path either")
-        end
-    end
     
     -- 正确处理目标文件名，确保重命名为libmain.so
     local target_filename = target:filename()
@@ -43,15 +19,7 @@ function main(target, android_sdk_version, android_manifest, android_res, androi
     if os.exists(source_lib) then
         os.mv(source_lib, dest_lib)
     else
-        -- 如果目标文件不存在，尝试其他可能的文件名
-        local possible_names = {"libcppray.so", "libmain.so"}
-        for _, name in ipairs(possible_names) do
-            local possible_lib = path.join(libarchpath, name)
-            if os.exists(possible_lib) then
-                os.mv(possible_lib, dest_lib)
-                break
-            end
-        end
+        cprint("${red}can't find source lib")
     end
 
     import("core.tool.toolchain")
@@ -88,7 +56,7 @@ function main(target, android_sdk_version, android_manifest, android_res, androi
         table.insert(aapt_argv, android_assets)
     end
 
-    print("packing resources...")
+    cprint("${green}packing resources...")
     os.vrunv(aapt, aapt_argv)
 
     import("lib.detect.find_tool")
@@ -99,7 +67,7 @@ function main(target, android_sdk_version, android_manifest, android_res, androi
         path.join(".", libpath)
     }
 
-    print("archiving libs...")
+    cprint("${green}archiving libs...")
     os.vrunv(zip.program or zip.name, zip_argv)
 
     local aligned_apk = path.join(outputtemppath, "unsigned.apk")
@@ -109,7 +77,7 @@ function main(target, android_sdk_version, android_manifest, android_res, androi
         resonly_apk, aligned_apk
     }
 
-    print("align apk...")
+    cprint("${green}align apk...")
     os.vrunv(zipalign, zipalign_argv)
 
     local final_output_path = outputtemppath
@@ -123,7 +91,7 @@ function main(target, android_sdk_version, android_manifest, android_res, androi
         "--in", aligned_apk
     }
 
-    print("signing apk...")
+    cprint("${green}signing apk...")
     os.vrunv(apksigner, apksigner_argv)
 
     if apk_output_path then

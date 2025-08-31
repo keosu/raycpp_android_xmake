@@ -1,6 +1,5 @@
-#ifdef  PLATFORM_ANDROID
+#ifdef PLATFORM_ANDROID
 #include <jni.h>
-
 
 // 声明main函数
 extern "C" int main();
