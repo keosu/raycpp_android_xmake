@@ -1,7 +1,7 @@
 add_rules("mode.debug", "mode.release")
 
 -- 包含 androidcpp 规则
-includes("androidcpp")
+includes("xmake_android")
 
 -- 添加 Android NDK 工具链支持
 if is_plat("android") then
