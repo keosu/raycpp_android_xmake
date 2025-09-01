@@ -15,7 +15,7 @@
         android:icon="@mipmap/icon">
 
         <activity android:name="android.app.NativeActivity"
-                  android:label="xmake-raycpp"
+                  android:label="ray_app"
                   android:configChanges="orientation|keyboardHidden">
             <meta-data android:name="android.app.lib_name"
                        android:value="main" />
