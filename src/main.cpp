@@ -170,7 +170,7 @@ struct Player {
     float invincibleTimer;
     
     Player() {
-        position = {SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT - 80.0f};
+        position = raylib::Vector2(SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT - 80.0f);
         health = 5;
         score = 0;
         shootCooldown = 0;
@@ -239,9 +239,9 @@ struct Player {
         
         // Main body
         DrawTriangle(
-            {position.x, position.y - 20},
-            {position.x - 15, position.y + 15},
-            {position.x + 15, position.y + 15},
+            raylib::Vector2(position.x, position.y - 20),
+            raylib::Vector2(position.x - 15, position.y + 15),
+            raylib::Vector2(position.x + 15, position.y + 15),
             shipColor
         );
         
@@ -412,14 +412,14 @@ public:
             
             // Add engine trail
             if (enemy.active && GetRandomValue(0, 5) == 0) {
-                particles.AddTrail({enemy.position.x, enemy.position.y + 10}, RED);
+                particles.AddTrail(raylib::Vector2(enemy.position.x, enemy.position.y + 10), RED);
             }
         }
         
         // Add player engine trail
         if (GetRandomValue(0, 2) == 0) {
-            particles.AddTrail({player.position.x - 10, player.position.y + 15}, ORANGE);
-            particles.AddTrail({player.position.x + 10, player.position.y + 15}, ORANGE);
+            particles.AddTrail(raylib::Vector2(player.position.x - 10, player.position.y + 15), ORANGE);
+            particles.AddTrail(raylib::Vector2(player.position.x + 10, player.position.y + 15), ORANGE);
         }
         
         // Collision detection
@@ -451,8 +451,8 @@ public:
         for (auto& enemy : enemies) {
             if (!enemy.active) {
                 enemy.Spawn(
-                    {x, -30},
-                    {0, ENEMY_SPEED * speedMultiplier},
+                    raylib::Vector2(x, -30),
+                    raylib::Vector2(0, ENEMY_SPEED * speedMultiplier),
                     health
                 );
                 break;
@@ -527,8 +527,9 @@ public:
             int x = (i * 97) % SCREEN_WIDTH;
             int y = (int)fmodf((float)(i * 67) + starOffset, (float)SCREEN_HEIGHT);
             int brightness = 100 + (i * 13) % 156;
-            DrawPixel(x, y, {(unsigned char)brightness, (unsigned char)brightness, 
-                             (unsigned char)brightness, 255});
+            raylib::Color starColor((unsigned char)brightness, (unsigned char)brightness, 
+                                    (unsigned char)brightness, 255);
+            DrawPixel(x, y, starColor);
         }
     }
     
@@ -558,9 +559,9 @@ public:
         // Animated ship
         float time = GetTime();
         DrawTriangle(
-            {SCREEN_WIDTH/2.0f, 240 + sinf(time * 2) * 10},
-            {SCREEN_WIDTH/2.0f - 15, 275 + sinf(time * 2) * 10},
-            {SCREEN_WIDTH/2.0f + 15, 275 + sinf(time * 2) * 10},
+            raylib::Vector2(SCREEN_WIDTH/2.0f, 240 + sinf(time * 2) * 10),
+            raylib::Vector2(SCREEN_WIDTH/2.0f - 15, 275 + sinf(time * 2) * 10),
+            raylib::Vector2(SCREEN_WIDTH/2.0f + 15, 275 + sinf(time * 2) * 10),
             SKYBLUE
         );
     }
