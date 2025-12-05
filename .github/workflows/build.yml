@@ -1,0 +1,293 @@
+name: Multi-Platform Build
+
+on:
+  push:
+    branches: [ main, master, develop ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  # Android 构建
+  build-android:
+    name: Build Android (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [arm64-v8a, armeabi-v7a]
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: Cache Android NDK
+      id: cache-ndk
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.ANDROID_SDK_ROOT }}/ndk/26.1.10909125
+        key: ndk-26.1.10909125-${{ runner.os }}
+        
+    - name: Install Android NDK
+      if: steps.cache-ndk.outputs.cache-hit != 'true'
+      run: |
+        echo "y" | sdkmanager --install "ndk;26.1.10909125"
+        
+    - name: Set NDK environment
+      run: |
+        export ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/26.1.10909125
+        echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+        echo "NDK installed at: $ANDROID_NDK_HOME"
+        
+    - name: Install Android SDK Build Tools and Platform
+      run: |
+        echo "y" | sdkmanager --install "build-tools;35.0.0"
+        echo "y" | sdkmanager --install "platforms;android-35"
+        
+    - name: Setup xmake
+      uses: xmake-io/github-action-setup-xmake@v1
+      with:
+        xmake-version: latest
+        
+    - name: Cache xmake packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.xmake/packages
+          .xmake
+        key: xmake-android-${{ matrix.arch }}-${{ hashFiles('**/xmake.lua') }}
+        restore-keys: |
+          xmake-android-${{ matrix.arch }}-
+          xmake-android-
+        
+    - name: Configure xmake for Android
+      run: |
+        xmake f -p android -a ${{ matrix.arch }} --ndk=$ANDROID_NDK_HOME -m release -y
+        
+    - name: Build Android APK
+      run: |
+        xmake build -v
+        
+    - name: Install APK to build directory
+      run: |
+        xmake install -o build
+        
+    - name: List build output
+      run: |
+        echo "Build directory contents:"
+        ls -lah build/
+        find build -name "*.apk" -o -name "*.so"
+        
+    - name: Rename APK with architecture
+      run: |
+        mkdir -p artifacts
+        if [ -f build/cppray.apk ]; then
+          cp build/cppray.apk artifacts/raycpp-${{ matrix.arch }}.apk
+        fi
+        if [ -f build/cppray-1.apk ]; then
+          cp build/cppray-1.apk artifacts/raycpp-${{ matrix.arch }}.apk
+        fi
+        find build -name "*.apk" -exec cp {} artifacts/raycpp-${{ matrix.arch }}.apk \; -quit || true
+        
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: raycpp-android-${{ matrix.arch }}
+        path: artifacts/*.apk
+        if-no-files-found: error
+        retention-days: 30
+
+  # Windows 桌面构建
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup xmake
+      uses: xmake-io/github-action-setup-xmake@v1
+      with:
+        xmake-version: latest
+        
+    - name: Cache xmake packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~\.xmake\packages
+          .xmake
+        key: xmake-windows-${{ hashFiles('**/xmake.lua') }}
+        restore-keys: |
+          xmake-windows-
+        
+    - name: Configure xmake for Windows
+      run: |
+        xmake f -p windows -a x64 -m release -y
+        
+    - name: Build
+      run: |
+        xmake build -v
+        
+    - name: Install to build directory
+      run: |
+        xmake install -o build
+        
+    - name: Package Windows build
+      run: |
+        mkdir -p artifacts
+        Copy-Item -Path build/* -Destination artifacts/ -Recurse -Force
+        
+    - name: Upload Windows build
+      uses: actions/upload-artifact@v4
+      with:
+        name: raycpp-windows-x64
+        path: artifacts/
+        if-no-files-found: error
+        retention-days: 30
+
+  # Linux 桌面构建
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgl1-mesa-dev libglu1-mesa-dev
+        
+    - name: Setup xmake
+      uses: xmake-io/github-action-setup-xmake@v1
+      with:
+        xmake-version: latest
+        
+    - name: Cache xmake packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.xmake/packages
+          .xmake
+        key: xmake-linux-${{ hashFiles('**/xmake.lua') }}
+        restore-keys: |
+          xmake-linux-
+        
+    - name: Configure xmake for Linux
+      run: |
+        xmake f -p linux -a x86_64 -m release -y
+        
+    - name: Build
+      run: |
+        xmake build -v
+        
+    - name: Install to build directory
+      run: |
+        xmake install -o build
+        
+    - name: Package Linux build
+      run: |
+        mkdir -p artifacts
+        cp -r build/* artifacts/
+        
+    - name: Upload Linux build
+      uses: actions/upload-artifact@v4
+      with:
+        name: raycpp-linux-x64
+        path: artifacts/
+        if-no-files-found: error
+        retention-days: 30
+
+  # macOS 桌面构建
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup xmake
+      uses: xmake-io/github-action-setup-xmake@v1
+      with:
+        xmake-version: latest
+        
+    - name: Cache xmake packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.xmake/packages
+          .xmake
+        key: xmake-macos-${{ hashFiles('**/xmake.lua') }}
+        restore-keys: |
+          xmake-macos-
+        
+    - name: Configure xmake for macOS
+      run: |
+        xmake f -p macosx -a x86_64 -m release -y
+        
+    - name: Build
+      run: |
+        xmake build -v
+        
+    - name: Install to build directory
+      run: |
+        xmake install -o build
+        
+    - name: Package macOS build
+      run: |
+        mkdir -p artifacts
+        cp -r build/* artifacts/
+        
+    - name: Upload macOS build
+      uses: actions/upload-artifact@v4
+      with:
+        name: raycpp-macos-x64
+        path: artifacts/
+        if-no-files-found: error
+        retention-days: 30
+
+  # 创建 Release（仅在标签推送时）
+  create-release:
+    name: Create Release
+    needs: [build-android, build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        
+    - name: List artifacts
+      run: |
+        echo "Downloaded artifacts:"
+        ls -lah artifacts/
+        find artifacts -type f
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          artifacts/**/*.apk
+          artifacts/**/*.exe
+          artifacts/**/cppray
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
