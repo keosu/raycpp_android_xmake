@@ -278,10 +278,41 @@ jobs:
         ls -lah artifacts/
         find artifacts -type f
         
+    - name: Prepare release files
+      run: |
+        mkdir -p release
+        
+        # Copy Android APKs
+        find artifacts/raycpp-android-* -name "*.apk" -exec cp {} release/ \; 2>/dev/null || true
+        
+        # Package Windows build
+        if [ -d "artifacts/raycpp-windows-x64" ]; then
+          cd artifacts/raycpp-windows-x64
+          zip -r ../../release/raycpp-windows-x64.zip .
+          cd ../..
+        fi
+        
+        # Package Linux build
+        if [ -d "artifacts/raycpp-linux-x64" ]; then
+          cd artifacts/raycpp-linux-x64
+          tar -czf ../../release/raycpp-linux-x64.tar.gz .
+          cd ../..
+        fi
+        
+        # Package macOS build
+        if [ -d "artifacts/raycpp-macos-x64" ]; then
+          cd artifacts/raycpp-macos-x64
+          tar -czf ../../release/raycpp-macos-x64.tar.gz .
+          cd ../..
+        fi
+        
+        echo "Release files:"
+        ls -lh release/
+        
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        files: artifacts/**/*
+        files: release/*
         draft: false
         prerelease: false
         generate_release_notes: true

@@ -57,7 +57,7 @@ struct Bullet {
     raylib::Vector2 velocity;
     bool active;
     
-    Bullet() : position({0, 0}), velocity({0, 0}), active(false) {}
+    Bullet() : position(0, 0), velocity(0, 0), active(false) {}
     
     void Spawn(raylib::Vector2 pos, raylib::Vector2 vel) {
         position = pos;
@@ -95,7 +95,7 @@ struct Enemy {
     float rotation;
     raylib::Color color;
     
-    Enemy() : position({0, 0}), velocity({0, 0}), active(false), health(1), rotation(0), color(RED) {}
+    Enemy() : position(0, 0), velocity(0, 0), active(false), health(1), rotation(0), color(RED) {}
     
     void Spawn(raylib::Vector2 pos, raylib::Vector2 vel, int hp) {
         position = pos;
@@ -122,9 +122,9 @@ struct Enemy {
     void Draw() const {
         if (active) {
             // Draw rotating enemy ship
-            raylib::Vector2 v1 = {position.x, position.y - 15};
-            raylib::Vector2 v2 = {position.x - 12, position.y + 12};
-            raylib::Vector2 v3 = {position.x + 12, position.y + 12};
+            raylib::Vector2 v1(position.x, position.y - 15);
+            raylib::Vector2 v2(position.x - 12, position.y + 12);
+            raylib::Vector2 v3(position.x + 12, position.y + 12);
             
             // Rotate points
             float rad = rotation * DEG2RAD;
@@ -189,7 +189,7 @@ struct Player {
         // Touch input for mobile
         if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
             raylib::Vector2 touch = GetMousePosition();
-            raylib::Vector2 direction = {touch.x - position.x, touch.y - position.y};
+            raylib::Vector2 direction(touch.x - position.x, touch.y - position.y);
             float length = sqrtf(direction.x * direction.x + direction.y * direction.y);
             if (length > 50) {
                 direction.x = (direction.x / length) * PLAYER_SPEED;
@@ -273,7 +273,7 @@ public:
         for (int i = 0; i < 20; i++) {
             float angle = (float)GetRandomValue(0, 360) * DEG2RAD;
             float speed = (float)GetRandomValue(2, 6);
-            raylib::Vector2 velocity = {cosf(angle) * speed, sinf(angle) * speed};
+            raylib::Vector2 velocity(cosf(angle) * speed, sinf(angle) * speed);
             float size = (float)GetRandomValue(2, 5);
             particles.emplace_back(position, velocity, color, 1.0f, size);
         }
@@ -281,10 +281,10 @@ public:
     
     void AddTrail(raylib::Vector2 position, raylib::Color color) {
         for (int i = 0; i < 2; i++) {
-            raylib::Vector2 velocity = {
+            raylib::Vector2 velocity(
                 (float)GetRandomValue(-10, 10) / 10.0f,
                 (float)GetRandomValue(10, 30) / 10.0f
-            };
+            );
             particles.emplace_back(position, velocity, color, 0.5f, 2.0f);
         }
     }
