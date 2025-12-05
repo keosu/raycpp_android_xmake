@@ -26,13 +26,6 @@ xmake build
 xmake install -o build
 ```
 
-### Android (armeabi-v7a)
-```bash
-xmake f -p android -a armeabi-v7a -m release
-xmake build
-xmake install -o build
-```
-
 ### Windows
 ```bash
 xmake f -p windows -a x64 -m release
@@ -67,7 +60,7 @@ xmake install -o build
 
 | 特性 | android.yml | build.yml |
 |------|-------------|-----------|
-| **Android** | ✅ arm64-v8a | ✅ arm64-v8a + armeabi-v7a |
+| **Android** | ✅ arm64-v8a | ✅ arm64-v8a |
 | **Windows** | ❌ | ✅ x64 |
 | **Linux** | ❌ | ✅ x86_64 |
 | **macOS** | ❌ | ✅ x86_64 |
