@@ -281,10 +281,7 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        files: |
-          artifacts/**/cppray.apk
-          artifacts/**/*.exe
-          artifacts/**/*.zip
+        files: artifacts/**/*
         draft: false
         prerelease: false
         generate_release_notes: true
