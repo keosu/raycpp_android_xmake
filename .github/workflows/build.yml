@@ -282,9 +282,9 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          artifacts/**/*.apk
+          artifacts/**/cppray.apk
           artifacts/**/*.exe
-          artifacts/**/cppray
+          artifacts/**/*.zip
         draft: false
         prerelease: false
         generate_release_notes: true
