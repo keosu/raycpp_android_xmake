@@ -5,14 +5,28 @@
 #include <algorithm>
 #include <raylib-cpp/raylib-cpp.hpp>
 
-// Game constants
-const int SCREEN_WIDTH = 800;
-const int SCREEN_HEIGHT = 600;
-const float PLAYER_SPEED = 5.0f;
-const float BULLET_SPEED = 8.0f;
-const float ENEMY_SPEED = 2.0f;
+// Screen helper functions
+inline int GetGameWidth() { return GetScreenWidth(); }
+inline int GetGameHeight() { return GetScreenHeight(); }
+inline bool IsPortrait() { return GetScreenHeight() > GetScreenWidth(); }
+inline bool IsLandscape() { return GetScreenWidth() >= GetScreenHeight(); }
+
+// Game constants - will be scaled based on screen size
+inline float GetScaleFactor() {
+    float baseWidth = IsPortrait() ? 600.0f : 800.0f;
+    return GetGameWidth() / baseWidth;
+}
+
+const float BASE_PLAYER_SPEED = 5.0f;
+const float BASE_BULLET_SPEED = 8.0f;
+const float BASE_ENEMY_SPEED = 2.0f;
 const int MAX_BULLETS = 50;
 const int MAX_ENEMIES = 20;
+
+// Dynamic game values
+inline float GetPlayerSpeed() { return BASE_PLAYER_SPEED * GetScaleFactor(); }
+inline float GetBulletSpeed() { return BASE_BULLET_SPEED * GetScaleFactor(); }
+inline float GetEnemySpeed() { return BASE_ENEMY_SPEED * GetScaleFactor(); }
 
 // Game states
 enum GameState {
@@ -71,8 +85,8 @@ struct Bullet {
             position.y += velocity.y;
             
             // Deactivate if off screen
-            if (position.y < -10 || position.y > SCREEN_HEIGHT + 10 ||
-                position.x < -10 || position.x > SCREEN_WIDTH + 10) {
+            if (position.y < -10 || position.y > GetGameHeight() + 10 ||
+                position.x < -10 || position.x > GetGameWidth() + 10) {
                 active = false;
             }
         }
@@ -80,8 +94,9 @@ struct Bullet {
     
     void Draw() const {
         if (active) {
-            DrawCircleV(position, 4, YELLOW);
-            DrawCircleV(position, 2, WHITE);
+            float scale = GetScaleFactor();
+            DrawCircleV(position, 4 * scale, YELLOW);
+            DrawCircleV(position, 2 * scale, WHITE);
         }
     }
 };
@@ -113,7 +128,7 @@ struct Enemy {
             rotation += 2.0f;
             
             // Deactivate if off screen
-            if (position.y > SCREEN_HEIGHT + 50) {
+            if (position.y > GetGameHeight() + 50 * GetScaleFactor()) {
                 active = false;
             }
         }
@@ -121,10 +136,11 @@ struct Enemy {
     
     void Draw() const {
         if (active) {
+            float scale = GetScaleFactor();
             // Draw rotating enemy ship
-            raylib::Vector2 v1(position.x, position.y - 15);
-            raylib::Vector2 v2(position.x - 12, position.y + 12);
-            raylib::Vector2 v3(position.x + 12, position.y + 12);
+            raylib::Vector2 v1(position.x, position.y - 15 * scale);
+            raylib::Vector2 v2(position.x - 12 * scale, position.y + 12 * scale);
+            raylib::Vector2 v3(position.x + 12 * scale, position.y + 12 * scale);
             
             // Rotate points
             float rad = rotation * DEG2RAD;
@@ -149,14 +165,15 @@ struct Enemy {
             
             // Draw health indicator
             if (health > 1) {
-                DrawCircle(position.x, position.y, 3, ORANGE);
+                DrawCircle(position.x, position.y, 3 * scale, ORANGE);
             }
         }
     }
     
     bool CheckCollision(const Bullet& bullet) const {
         if (!active || !bullet.active) return false;
-        return CheckCollisionCircles(position, 15, bullet.position, 4);
+        float scale = GetScaleFactor();
+        return CheckCollisionCircles(position, 15 * scale, bullet.position, 4 * scale);
     }
 };
 
@@ -170,7 +187,16 @@ struct Player {
     float invincibleTimer;
     
     Player() {
-        position = raylib::Vector2(SCREEN_WIDTH / 2.0f, SCREEN_HEIGHT - 80.0f);
+        position = raylib::Vector2(GetGameWidth() / 2.0f, GetGameHeight() - 80.0f * GetScaleFactor());
+        health = 5;
+        score = 0;
+        shootCooldown = 0;
+        invincible = false;
+        invincibleTimer = 0;
+    }
+    
+    void Reset() {
+        position = raylib::Vector2(GetGameWidth() / 2.0f, GetGameHeight() - 80.0f * GetScaleFactor());
         health = 5;
         score = 0;
         shootCooldown = 0;
@@ -179,11 +205,13 @@ struct Player {
     }
     
     void Update() {
+        float speed = GetPlayerSpeed();
+        
         // Movement
-        if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) position.x -= PLAYER_SPEED;
-        if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) position.x += PLAYER_SPEED;
-        if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) position.y -= PLAYER_SPEED;
-        if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) position.y += PLAYER_SPEED;
+        if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) position.x -= speed;
+        if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) position.x += speed;
+        if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) position.y -= speed;
+        if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) position.y += speed;
         
 #ifdef PLATFORM_ANDROID
         // Touch input for mobile
@@ -191,9 +219,10 @@ struct Player {
             raylib::Vector2 touch = GetMousePosition();
             raylib::Vector2 direction(touch.x - position.x, touch.y - position.y);
             float length = sqrtf(direction.x * direction.x + direction.y * direction.y);
-            if (length > 50) {
-                direction.x = (direction.x / length) * PLAYER_SPEED;
-                direction.y = (direction.y / length) * PLAYER_SPEED;
+            float minDistance = 50 * GetScaleFactor();
+            if (length > minDistance) {
+                direction.x = (direction.x / length) * speed;
+                direction.y = (direction.y / length) * speed;
                 position.x += direction.x;
                 position.y += direction.y;
             }
@@ -201,10 +230,11 @@ struct Player {
 #endif
         
         // Keep player on screen
-        if (position.x < 30) position.x = 30;
-        if (position.x > SCREEN_WIDTH - 30) position.x = SCREEN_WIDTH - 30;
-        if (position.y < 30) position.y = 30;
-        if (position.y > SCREEN_HEIGHT - 30) position.y = SCREEN_HEIGHT - 30;
+        float margin = 30 * GetScaleFactor();
+        if (position.x < margin) position.x = margin;
+        if (position.x > GetGameWidth() - margin) position.x = GetGameWidth() - margin;
+        if (position.y < margin) position.y = margin;
+        if (position.y > GetGameHeight() - margin) position.y = GetGameHeight() - margin;
         
         // Update cooldowns
         if (shootCooldown > 0) shootCooldown -= GetFrameTime();
@@ -231,6 +261,8 @@ struct Player {
     }
     
     void Draw() const {
+        float scale = GetScaleFactor();
+        
         // Draw player ship
         raylib::Color shipColor = invincible ? BLUE : SKYBLUE;
         if (invincible && (int)(invincibleTimer * 10) % 2 == 0) {
@@ -239,27 +271,28 @@ struct Player {
         
         // Main body
         DrawTriangle(
-            raylib::Vector2(position.x, position.y - 20),
-            raylib::Vector2(position.x - 15, position.y + 15),
-            raylib::Vector2(position.x + 15, position.y + 15),
+            raylib::Vector2(position.x, position.y - 20 * scale),
+            raylib::Vector2(position.x - 15 * scale, position.y + 15 * scale),
+            raylib::Vector2(position.x + 15 * scale, position.y + 15 * scale),
             shipColor
         );
         
         // Cockpit
-        DrawCircle(position.x, position.y, 6, DARKBLUE);
+        DrawCircle(position.x, position.y, 6 * scale, DARKBLUE);
         
         // Wings
-        DrawRectangle(position.x - 20, position.y + 5, 8, 12, shipColor);
-        DrawRectangle(position.x + 12, position.y + 5, 8, 12, shipColor);
+        DrawRectangle(position.x - 20 * scale, position.y + 5 * scale, 8 * scale, 12 * scale, shipColor);
+        DrawRectangle(position.x + 12 * scale, position.y + 5 * scale, 8 * scale, 12 * scale, shipColor);
         
         // Engine glow
-        DrawCircle(position.x - 10, position.y + 15, 3, ORANGE);
-        DrawCircle(position.x + 10, position.y + 15, 3, ORANGE);
+        DrawCircle(position.x - 10 * scale, position.y + 15 * scale, 3 * scale, ORANGE);
+        DrawCircle(position.x + 10 * scale, position.y + 15 * scale, 3 * scale, ORANGE);
     }
     
     bool CheckCollision(const Enemy& enemy) const {
         if (!enemy.active || invincible) return false;
-        return CheckCollisionCircles(position, 15, enemy.position, 15);
+        float scale = GetScaleFactor();
+        return CheckCollisionCircles(position, 15 * scale, enemy.position, 15 * scale);
     }
 };
 
@@ -334,7 +367,7 @@ public:
     }
     
     void Reset() {
-        player = Player();
+        player.Reset();
         for (auto& b : bullets) b.active = false;
         for (auto& e : enemies) e.active = false;
         particles.Clear();
@@ -385,7 +418,7 @@ public:
         // Player shooting
         if ((IsKeyDown(KEY_SPACE) || IsMouseButtonDown(MOUSE_LEFT_BUTTON)) && 
             player.CanShoot()) {
-            SpawnBullet(player.position, {0, -BULLET_SPEED});
+            SpawnBullet(player.position, raylib::Vector2(0, -GetBulletSpeed()));
             player.Shoot();
         }
         
@@ -412,14 +445,16 @@ public:
             
             // Add engine trail
             if (enemy.active && GetRandomValue(0, 5) == 0) {
-                particles.AddTrail(raylib::Vector2(enemy.position.x, enemy.position.y + 10), RED);
+                float scale = GetScaleFactor();
+                particles.AddTrail(raylib::Vector2(enemy.position.x, enemy.position.y + 10 * scale), RED);
             }
         }
         
         // Add player engine trail
         if (GetRandomValue(0, 2) == 0) {
-            particles.AddTrail(raylib::Vector2(player.position.x - 10, player.position.y + 15), ORANGE);
-            particles.AddTrail(raylib::Vector2(player.position.x + 10, player.position.y + 15), ORANGE);
+            float scale = GetScaleFactor();
+            particles.AddTrail(raylib::Vector2(player.position.x - 10 * scale, player.position.y + 15 * scale), ORANGE);
+            particles.AddTrail(raylib::Vector2(player.position.x + 10 * scale, player.position.y + 15 * scale), ORANGE);
         }
         
         // Collision detection
@@ -444,15 +479,16 @@ public:
     }
     
     void SpawnEnemy() {
-        float x = (float)GetRandomValue(50, SCREEN_WIDTH - 50);
+        float margin = 50 * GetScaleFactor();
+        float x = (float)GetRandomValue(margin, GetGameWidth() - margin);
         int health = (GetRandomValue(0, 100) < 20 + wave * 5) ? 2 : 1;
         float speedMultiplier = 1.0f + difficultyTimer / 60.0f;
         
         for (auto& enemy : enemies) {
             if (!enemy.active) {
                 enemy.Spawn(
-                    raylib::Vector2(x, -30),
-                    raylib::Vector2(0, ENEMY_SPEED * speedMultiplier),
+                    raylib::Vector2(x, -30 * GetScaleFactor()),
+                    raylib::Vector2(0, GetEnemySpeed() * speedMultiplier),
                     health
                 );
                 break;
@@ -520,12 +556,13 @@ public:
     
     void DrawStarfield() {
         static float starOffset = 0;
-        starOffset += 0.5f;
-        if (starOffset > SCREEN_HEIGHT) starOffset = 0;
+        starOffset += 0.5f * GetScaleFactor();
+        if (starOffset > GetGameHeight()) starOffset = 0;
         
-        for (int i = 0; i < 100; i++) {
-            int x = (i * 97) % SCREEN_WIDTH;
-            int y = (int)fmodf((float)(i * 67) + starOffset, (float)SCREEN_HEIGHT);
+        int starCount = (int)(100 * GetScaleFactor());
+        for (int i = 0; i < starCount; i++) {
+            int x = (i * 97) % GetGameWidth();
+            int y = (int)fmodf((float)(i * 67) + starOffset, (float)GetGameHeight());
             int brightness = 100 + (i * 13) % 156;
             raylib::Color starColor((unsigned char)brightness, (unsigned char)brightness, 
                                     (unsigned char)brightness, 255);
@@ -534,34 +571,59 @@ public:
     }
     
     void DrawMenu() {
+        int centerX = GetGameWidth() / 2;
+        float scale = GetScaleFactor();
+        int titleSize = (int)(60 * scale);
+        int instructionSize = (int)(30 * scale);
+        int textSize = (int)(16 * scale);
+        
         // Title
-        DrawText("SPACE DEFENDER", SCREEN_WIDTH/2 - 220, 150, 60, SKYBLUE);
-        DrawText("SPACE DEFENDER", SCREEN_WIDTH/2 - 222, 148, 60, BLUE);
+        const char* title = "SPACE DEFENDER";
+        int titleWidth = MeasureText(title, titleSize);
+        DrawText(title, centerX - titleWidth/2, (int)(150 * scale), titleSize, SKYBLUE);
+        DrawText(title, centerX - titleWidth/2 - 2, (int)(148 * scale), titleSize, BLUE);
         
         // Instructions
         const char* instruction = "PRESS SPACE TO START";
 #ifdef PLATFORM_ANDROID
         instruction = "TAP TO START";
 #endif
-        DrawText(instruction, SCREEN_WIDTH/2 - 180, 300, 30, WHITE);
+        int instrWidth = MeasureText(instruction, instructionSize);
+        DrawText(instruction, centerX - instrWidth/2, (int)(300 * scale), instructionSize, WHITE);
         
         // Controls
-        DrawText("CONTROLS:", SCREEN_WIDTH/2 - 100, 380, 20, YELLOW);
+        const char* controlsTitle = "CONTROLS:";
+        int controlsTitleWidth = MeasureText(controlsTitle, (int)(20 * scale));
+        DrawText(controlsTitle, centerX - controlsTitleWidth/2, (int)(380 * scale), (int)(20 * scale), YELLOW);
+        
 #ifdef PLATFORM_ANDROID
-        DrawText("Touch to move", SCREEN_WIDTH/2 - 100, 410, 16, WHITE);
-        DrawText("Auto shoot", SCREEN_WIDTH/2 - 100, 435, 16, WHITE);
+        int y = (int)(410 * scale);
+        const char* touch = "Touch to move";
+        const char* shoot = "Auto shoot";
+        int touchWidth = MeasureText(touch, textSize);
+        int shootWidth = MeasureText(shoot, textSize);
+        DrawText(touch, centerX - touchWidth/2, y, textSize, WHITE);
+        DrawText(shoot, centerX - shootWidth/2, y + (int)(25 * scale), textSize, WHITE);
 #else
-        DrawText("WASD or Arrow Keys - Move", SCREEN_WIDTH/2 - 150, 410, 16, WHITE);
-        DrawText("SPACE - Shoot", SCREEN_WIDTH/2 - 150, 435, 16, WHITE);
-        DrawText("P - Pause", SCREEN_WIDTH/2 - 150, 460, 16, WHITE);
+        int y = (int)(410 * scale);
+        const char* move = "WASD or Arrow Keys - Move";
+        const char* shoot = "SPACE - Shoot";
+        const char* pause = "P - Pause";
+        int moveWidth = MeasureText(move, textSize);
+        int shootWidth = MeasureText(shoot, textSize);
+        int pauseWidth = MeasureText(pause, textSize);
+        DrawText(move, centerX - moveWidth/2, y, textSize, WHITE);
+        DrawText(shoot, centerX - shootWidth/2, y + (int)(25 * scale), textSize, WHITE);
+        DrawText(pause, centerX - pauseWidth/2, y + (int)(50 * scale), textSize, WHITE);
 #endif
         
         // Animated ship
         float time = GetTime();
+        float shipY = 240 * scale + sinf(time * 2) * 10 * scale;
         DrawTriangle(
-            raylib::Vector2(SCREEN_WIDTH/2.0f, 240 + sinf(time * 2) * 10),
-            raylib::Vector2(SCREEN_WIDTH/2.0f - 15, 275 + sinf(time * 2) * 10),
-            raylib::Vector2(SCREEN_WIDTH/2.0f + 15, 275 + sinf(time * 2) * 10),
+            raylib::Vector2(centerX, shipY),
+            raylib::Vector2(centerX - 15 * scale, shipY + 35 * scale),
+            raylib::Vector2(centerX + 15 * scale, shipY + 35 * scale),
             SKYBLUE
         );
     }
@@ -585,47 +647,95 @@ public:
     }
     
     void DrawUI() {
+        float scale = GetScaleFactor();
+        int scoreSize = (int)(20 * scale);
+        int waveSize = (int)(16 * scale);
+        int margin = (int)(10 * scale);
+        
         // Score
-        DrawText(TextFormat("SCORE: %d", player.score), 10, 10, 20, YELLOW);
+        DrawText(TextFormat("SCORE: %d", player.score), margin, margin, scoreSize, YELLOW);
         
         // Wave
-        DrawText(TextFormat("WAVE: %d", wave), 10, 35, 16, SKYBLUE);
+        DrawText(TextFormat("WAVE: %d", wave), margin, margin + scoreSize + 5, waveSize, SKYBLUE);
         
         // Health
-        DrawText("HEALTH:", SCREEN_WIDTH - 180, 10, 20, RED);
+        int healthX = GetGameWidth() - (int)(180 * scale);
+        DrawText("HEALTH:", healthX, margin, scoreSize, RED);
         for (int i = 0; i < player.health; i++) {
-            DrawRectangle(SCREEN_WIDTH - 180 + 90 + i * 18, 13, 15, 15, RED);
+            DrawRectangle(healthX + (int)(90 * scale) + i * (int)(18 * scale), 
+                         margin + (int)(3 * scale), 
+                         (int)(15 * scale), (int)(15 * scale), RED);
         }
         
-        // FPS
-        DrawFPS(SCREEN_WIDTH - 80, SCREEN_HEIGHT - 25);
+        // FPS (smaller on mobile)
+#ifdef PLATFORM_ANDROID
+        if (IsLandscape()) {
+            DrawFPS(GetGameWidth() - (int)(80 * scale), GetGameHeight() - (int)(25 * scale));
+        }
+#else
+        DrawFPS(GetGameWidth() - (int)(80 * scale), GetGameHeight() - (int)(25 * scale));
+#endif
     }
     
     void DrawPaused() {
-        DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, {0, 0, 0, 180});
-        DrawText("PAUSED", SCREEN_WIDTH/2 - 120, SCREEN_HEIGHT/2 - 40, 60, WHITE);
-        DrawText("Press P to continue", SCREEN_WIDTH/2 - 130, SCREEN_HEIGHT/2 + 40, 20, LIGHTGRAY);
+        DrawRectangle(0, 0, GetGameWidth(), GetGameHeight(), {0, 0, 0, 180});
+        int centerX = GetGameWidth() / 2;
+        int centerY = GetGameHeight() / 2;
+        float scale = GetScaleFactor();
+        
+        const char* paused = "PAUSED";
+        int pausedSize = (int)(60 * scale);
+        int pausedWidth = MeasureText(paused, pausedSize);
+        DrawText(paused, centerX - pausedWidth/2, centerY - (int)(40 * scale), pausedSize, WHITE);
+        
+        const char* cont = "Press P to continue";
+        int contSize = (int)(20 * scale);
+        int contWidth = MeasureText(cont, contSize);
+        DrawText(cont, centerX - contWidth/2, centerY + (int)(40 * scale), contSize, LIGHTGRAY);
     }
     
     void DrawGameOver() {
-        DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, {0, 0, 0, 180});
-        DrawText("GAME OVER", SCREEN_WIDTH/2 - 180, SCREEN_HEIGHT/2 - 80, 60, RED);
-        DrawText(TextFormat("Final Score: %d", player.score), 
-                 SCREEN_WIDTH/2 - 120, SCREEN_HEIGHT/2 + 20, 30, YELLOW);
-        DrawText(TextFormat("Wave Reached: %d", wave),
-                 SCREEN_WIDTH/2 - 110, SCREEN_HEIGHT/2 + 60, 25, SKYBLUE);
+        DrawRectangle(0, 0, GetGameWidth(), GetGameHeight(), {0, 0, 0, 180});
+        int centerX = GetGameWidth() / 2;
+        int centerY = GetGameHeight() / 2;
+        float scale = GetScaleFactor();
+        
+        const char* gameOver = "GAME OVER";
+        int gameOverSize = (int)(60 * scale);
+        int gameOverWidth = MeasureText(gameOver, gameOverSize);
+        DrawText(gameOver, centerX - gameOverWidth/2, centerY - (int)(80 * scale), gameOverSize, RED);
+        
+        const char* finalScore = TextFormat("Final Score: %d", player.score);
+        int scoreSize = (int)(30 * scale);
+        int scoreWidth = MeasureText(finalScore, scoreSize);
+        DrawText(finalScore, centerX - scoreWidth/2, centerY + (int)(20 * scale), scoreSize, YELLOW);
+        
+        const char* waveText = TextFormat("Wave Reached: %d", wave);
+        int waveSize = (int)(25 * scale);
+        int waveWidth = MeasureText(waveText, waveSize);
+        DrawText(waveText, centerX - waveWidth/2, centerY + (int)(60 * scale), waveSize, SKYBLUE);
                  
         const char* restart = "Press SPACE to return to menu";
 #ifdef PLATFORM_ANDROID
         restart = "Tap to return to menu";
 #endif
-        DrawText(restart, SCREEN_WIDTH/2 - 200, SCREEN_HEIGHT/2 + 120, 20, WHITE);
+        int restartSize = (int)(20 * scale);
+        int restartWidth = MeasureText(restart, restartSize);
+        DrawText(restart, centerX - restartWidth/2, centerY + (int)(120 * scale), restartSize, WHITE);
     }
 };
 
 int main() {
     // Initialize window
-    raylib::Window window(SCREEN_WIDTH, SCREEN_HEIGHT, "Space Defender");
+#ifdef PLATFORM_ANDROID
+    // On Android, use device screen size
+    raylib::Window window(0, 0, "Space Defender");
+    // Enable full screen on Android
+    // SetConfigFlags(FLAG_FULLSCREEN_MODE);
+#else
+    // On desktop, use fixed size
+    raylib::Window window(800, 600, "Space Defender");
+#endif
     SetTargetFPS(60);
     
 #ifdef PLATFORM_ANDROID
