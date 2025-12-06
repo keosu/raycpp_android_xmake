@@ -3,40 +3,131 @@
 #include <cmath>
 #include <memory>
 #include <algorithm>
+#include <string>
+#include <sstream>
+#include <iomanip>
+#include <deque>
 #include <raylib-cpp/raylib-cpp.hpp>
 
 // Screen helper functions
 inline int GetGameWidth() { return GetScreenWidth(); }
 inline int GetGameHeight() { return GetScreenHeight(); }
 inline bool IsPortrait() { return GetScreenHeight() > GetScreenWidth(); }
-inline bool IsLandscape() { return GetScreenWidth() >= GetScreenHeight(); }
 
-// Game constants - will be scaled based on screen size
 inline float GetScaleFactor() {
     float baseWidth = IsPortrait() ? 600.0f : 800.0f;
     return GetGameWidth() / baseWidth;
 }
 
-const float BASE_PLAYER_SPEED = 5.0f;
-const float BASE_BULLET_SPEED = 8.0f;
-const float BASE_ENEMY_SPEED = 2.0f;
-const int MAX_BULLETS = 50;
-const int MAX_ENEMIES = 20;
+// UI Constants
+const int TAB_HEIGHT = 80;
+const int CARD_MARGIN = 20;
+const int CARD_PADDING = 15;
+const int GRAPH_HISTORY = 100;
 
-// Dynamic game values
-inline float GetPlayerSpeed() { return BASE_PLAYER_SPEED * GetScaleFactor(); }
-inline float GetBulletSpeed() { return BASE_BULLET_SPEED * GetScaleFactor(); }
-inline float GetEnemySpeed() { return BASE_ENEMY_SPEED * GetScaleFactor(); }
-
-// Game states
-enum GameState {
-    MENU,
-    PLAYING,
-    PAUSED,
-    GAME_OVER
+// Tabs for different sensor views
+enum SensorTab {
+    TAB_ACCELEROMETER = 0,
+    TAB_GYROSCOPE,
+    TAB_MAGNETOMETER,
+    TAB_TOUCH,
+    TAB_COMPASS,
+    TAB_COUNT
 };
 
-// Particle system
+const char* TAB_NAMES[] = {
+    "ACCEL",
+    "GYRO", 
+    "MAG",
+    "TOUCH",
+    "COMPASS"
+};
+
+const char* TAB_ICONS[] = {
+    "📱",  // Accelerometer
+    "🔄",  // Gyroscope
+    "🧭",  // Magnetometer
+    "👆",  // Touch
+    "🧭"   // Compass
+};
+
+// Utility functions
+inline std::string FormatFloat(float value, int precision = 2) {
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(precision) << value;
+    return ss.str();
+}
+
+inline float LerpFloat(float a, float b, float t) {
+    return a + (b - a) * t;
+}
+
+inline raylib::Color LerpColor(raylib::Color a, raylib::Color b, float t) {
+    return raylib::Color(
+        (unsigned char)LerpFloat(a.r, b.r, t),
+        (unsigned char)LerpFloat(a.g, b.g, t),
+        (unsigned char)LerpFloat(a.b, b.b, t),
+        (unsigned char)LerpFloat(a.a, b.a, t)
+    );
+}
+
+inline float ClampFloat(float value, float min, float max) {
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
+}
+
+// Sensor data history for graphs
+template<typename T>
+class DataHistory {
+private:
+    std::deque<T> data;
+    size_t maxSize;
+    
+public:
+    DataHistory(size_t size = GRAPH_HISTORY) : maxSize(size) {}
+    
+    void Push(T value) {
+        data.push_back(value);
+        if (data.size() > maxSize) {
+            data.pop_front();
+        }
+    }
+    
+    const std::deque<T>& GetData() const { return data; }
+    
+    T GetLatest() const {
+        return data.empty() ? T{} : data.back();
+    }
+    
+    void Clear() { data.clear(); }
+    
+    size_t Size() const { return data.size(); }
+};
+
+// Vector3 data history
+class Vector3History {
+public:
+    DataHistory<float> x;
+    DataHistory<float> y;
+    DataHistory<float> z;
+    
+    Vector3History() : x(GRAPH_HISTORY), y(GRAPH_HISTORY), z(GRAPH_HISTORY) {}
+    
+    void Push(raylib::Vector3 vec) {
+        x.Push(vec.x);
+        y.Push(vec.y);
+        z.Push(vec.z);
+    }
+    
+    void Clear() {
+        x.Clear();
+        y.Clear();
+        z.Clear();
+    }
+};
+
+// Particle for visual effects
 struct Particle {
     raylib::Vector2 position;
     raylib::Vector2 velocity;
@@ -52,7 +143,8 @@ struct Particle {
         position.x += velocity.x;
         position.y += velocity.y;
         lifetime -= GetFrameTime();
-        velocity.y += 0.1f; // Gravity
+        velocity.x *= 0.98f;
+        velocity.y *= 0.98f;
     }
     
     bool IsAlive() const { return lifetime > 0; }
@@ -60,269 +152,200 @@ struct Particle {
     void Draw() const {
         float alpha = lifetime / maxLifetime;
         raylib::Color drawColor = color;
-        drawColor.a = static_cast<unsigned char>(255 * alpha);
-        DrawCircleV(position, size, drawColor);
+        drawColor.a = (unsigned char)(255 * alpha);
+        DrawCircleV(position, size * alpha, drawColor);
     }
 };
 
-// Bullet class
-struct Bullet {
+// Touch point tracking
+struct TouchPoint {
     raylib::Vector2 position;
-    raylib::Vector2 velocity;
+    raylib::Vector2 lastPosition;
+    int id;
+    float pressure;
     bool active;
-    
-    Bullet() : position(0, 0), velocity(0, 0), active(false) {}
-    
-    void Spawn(raylib::Vector2 pos, raylib::Vector2 vel) {
-        position = pos;
-        velocity = vel;
-        active = true;
-    }
-    
-    void Update() {
-        if (active) {
-            position.x += velocity.x;
-            position.y += velocity.y;
-            
-            // Deactivate if off screen
-            if (position.y < -10 || position.y > GetGameHeight() + 10 ||
-                position.x < -10 || position.x > GetGameWidth() + 10) {
-                active = false;
-            }
-        }
-    }
-    
-    void Draw() const {
-        if (active) {
-            float scale = GetScaleFactor();
-            DrawCircleV(position, 4 * scale, YELLOW);
-            DrawCircleV(position, 2 * scale, WHITE);
-        }
-    }
-};
-
-// Enemy class
-struct Enemy {
-    raylib::Vector2 position;
-    raylib::Vector2 velocity;
-    bool active;
-    int health;
-    float rotation;
     raylib::Color color;
+    float lifetime;
     
-    Enemy() : position(0, 0), velocity(0, 0), active(false), health(1), rotation(0), color(RED) {}
-    
-    void Spawn(raylib::Vector2 pos, raylib::Vector2 vel, int hp) {
-        position = pos;
-        velocity = vel;
-        active = true;
-        health = hp;
-        rotation = 0;
-        color = (hp > 1) ? PURPLE : RED;
-    }
-    
-    void Update() {
-        if (active) {
-            position.x += velocity.x;
-            position.y += velocity.y;
-            rotation += 2.0f;
-            
-            // Deactivate if off screen
-            if (position.y > GetGameHeight() + 50 * GetScaleFactor()) {
-                active = false;
-            }
-        }
-    }
-    
-    void Draw() const {
-        if (active) {
-            float scale = GetScaleFactor();
-            // Draw rotating enemy ship
-            raylib::Vector2 v1(position.x, position.y - 15 * scale);
-            raylib::Vector2 v2(position.x - 12 * scale, position.y + 12 * scale);
-            raylib::Vector2 v3(position.x + 12 * scale, position.y + 12 * scale);
-            
-            // Rotate points
-            float rad = rotation * DEG2RAD;
-            float cosR = cosf(rad);
-            float sinR = sinf(rad);
-            
-            auto rotatePoint = [&](raylib::Vector2 p) -> raylib::Vector2 {
-                float x = p.x - position.x;
-                float y = p.y - position.y;
-                return {
-                    position.x + x * cosR - y * sinR,
-                    position.y + x * sinR + y * cosR
-                };
-            };
-            
-            v1 = rotatePoint(v1);
-            v2 = rotatePoint(v2);
-            v3 = rotatePoint(v3);
-            
-            DrawTriangle(v1, v2, v3, color);
-            DrawTriangleLines(v1, v2, v3, DARKGRAY);
-            
-            // Draw health indicator
-            if (health > 1) {
-                DrawCircle(position.x, position.y, 3 * scale, ORANGE);
-            }
-        }
-    }
-    
-    bool CheckCollision(const Bullet& bullet) const {
-        if (!active || !bullet.active) return false;
-        float scale = GetScaleFactor();
-        return CheckCollisionCircles(position, 15 * scale, bullet.position, 4 * scale);
-    }
+    TouchPoint() : position(0, 0), lastPosition(0, 0), id(0), pressure(1.0f), 
+                   active(false), color(SKYBLUE), lifetime(0) {}
 };
 
-// Player class
-struct Player {
-    raylib::Vector2 position;
-    int health;
-    int score;
-    float shootCooldown;
-    bool invincible;
-    float invincibleTimer;
-    
-    Player() {
-        position = raylib::Vector2(GetGameWidth() / 2.0f, GetGameHeight() - 80.0f * GetScaleFactor());
-        health = 5;
-        score = 0;
-        shootCooldown = 0;
-        invincible = false;
-        invincibleTimer = 0;
-    }
-    
-    void Reset() {
-        position = raylib::Vector2(GetGameWidth() / 2.0f, GetGameHeight() - 80.0f * GetScaleFactor());
-        health = 5;
-        score = 0;
-        shootCooldown = 0;
-        invincible = false;
-        invincibleTimer = 0;
-    }
-    
-    void Update() {
-        float speed = GetPlayerSpeed();
-        
-        // Movement
-        if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) position.x -= speed;
-        if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) position.x += speed;
-        if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) position.y -= speed;
-        if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) position.y += speed;
-        
-#ifdef PLATFORM_ANDROID
-        // Touch input for mobile
-        if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
-            raylib::Vector2 touch = GetMousePosition();
-            raylib::Vector2 direction(touch.x - position.x, touch.y - position.y);
-            float length = sqrtf(direction.x * direction.x + direction.y * direction.y);
-            float minDistance = 50 * GetScaleFactor();
-            if (length > minDistance) {
-                direction.x = (direction.x / length) * speed;
-                direction.y = (direction.y / length) * speed;
-                position.x += direction.x;
-                position.y += direction.y;
-            }
-        }
-#endif
-        
-        // Keep player on screen
-        float margin = 30 * GetScaleFactor();
-        if (position.x < margin) position.x = margin;
-        if (position.x > GetGameWidth() - margin) position.x = GetGameWidth() - margin;
-        if (position.y < margin) position.y = margin;
-        if (position.y > GetGameHeight() - margin) position.y = GetGameHeight() - margin;
-        
-        // Update cooldowns
-        if (shootCooldown > 0) shootCooldown -= GetFrameTime();
-        if (invincibleTimer > 0) {
-            invincibleTimer -= GetFrameTime();
-            if (invincibleTimer <= 0) invincible = false;
-        }
-    }
-    
-    bool CanShoot() const {
-        return shootCooldown <= 0;
-    }
-    
-    void Shoot() {
-        shootCooldown = 0.15f;
-    }
-    
-    void TakeDamage() {
-        if (!invincible) {
-            health--;
-            invincible = true;
-            invincibleTimer = 2.0f;
-        }
-    }
-    
-    void Draw() const {
-        float scale = GetScaleFactor();
-        
-        // Draw player ship
-        raylib::Color shipColor = invincible ? BLUE : SKYBLUE;
-        if (invincible && (int)(invincibleTimer * 10) % 2 == 0) {
-            shipColor.a = 128;
-        }
-        
-        // Main body
-        DrawTriangle(
-            raylib::Vector2(position.x, position.y - 20 * scale),
-            raylib::Vector2(position.x - 15 * scale, position.y + 15 * scale),
-            raylib::Vector2(position.x + 15 * scale, position.y + 15 * scale),
-            shipColor
-        );
-        
-        // Cockpit
-        DrawCircle(position.x, position.y, 6 * scale, DARKBLUE);
-        
-        // Wings
-        DrawRectangle(position.x - 20 * scale, position.y + 5 * scale, 8 * scale, 12 * scale, shipColor);
-        DrawRectangle(position.x + 12 * scale, position.y + 5 * scale, 8 * scale, 12 * scale, shipColor);
-        
-        // Engine glow
-        DrawCircle(position.x - 10 * scale, position.y + 15 * scale, 3 * scale, ORANGE);
-        DrawCircle(position.x + 10 * scale, position.y + 15 * scale, 3 * scale, ORANGE);
-    }
-    
-    bool CheckCollision(const Enemy& enemy) const {
-        if (!enemy.active || invincible) return false;
-        float scale = GetScaleFactor();
-        return CheckCollisionCircles(position, 15 * scale, enemy.position, 15 * scale);
-    }
-};
-
-// Particle manager
-class ParticleManager {
+// Main sensor demo app
+class SensorDemoApp {
 private:
+    SensorTab currentTab;
+    
+    // Sensor data
+    Vector3History accelHistory;
+    Vector3History gyroHistory;
+    Vector3History magHistory;
+    
+    // Current sensor values (smoothed)
+    raylib::Vector3 accelValue;
+    raylib::Vector3 gyroValue;
+    raylib::Vector3 magValue;
+    
+    // Touch data
+    std::vector<TouchPoint> touchPoints;
     std::vector<Particle> particles;
     
-public:
-    void AddExplosion(raylib::Vector2 position, raylib::Color color) {
-        for (int i = 0; i < 20; i++) {
-            float angle = (float)GetRandomValue(0, 360) * DEG2RAD;
-            float speed = (float)GetRandomValue(2, 6);
-            raylib::Vector2 velocity(cosf(angle) * speed, sinf(angle) * speed);
-            float size = (float)GetRandomValue(2, 5);
-            particles.emplace_back(position, velocity, color, 1.0f, size);
-        }
-    }
+    // Compass
+    float compassAngle;
+    float compassTargetAngle;
     
-    void AddTrail(raylib::Vector2 position, raylib::Color color) {
-        for (int i = 0; i < 2; i++) {
-            raylib::Vector2 velocity(
-                (float)GetRandomValue(-10, 10) / 10.0f,
-                (float)GetRandomValue(10, 30) / 10.0f
-            );
-            particles.emplace_back(position, velocity, color, 0.5f, 2.0f);
-        }
+    // UI state
+    float tabTransition;
+    int targetTab;
+    
+    // 3D visualization
+    Camera3D camera;
+    raylib::Vector3 cubeRotation;
+    
+public:
+    SensorDemoApp() {
+        currentTab = TAB_ACCELEROMETER;
+        targetTab = TAB_ACCELEROMETER;
+        tabTransition = 0.0f;
+        
+        accelValue = raylib::Vector3(0, 0, 0);
+        gyroValue = raylib::Vector3(0, 0, 0);
+        magValue = raylib::Vector3(0, 0, 0);
+        
+        compassAngle = 0.0f;
+        compassTargetAngle = 0.0f;
+        
+        touchPoints.resize(10);
+        
+        cubeRotation = raylib::Vector3(0, 0, 0);
+        
+        // Setup 3D camera
+        camera.position = raylib::Vector3(0.0f, 10.0f, 10.0f);
+        camera.target = raylib::Vector3(0.0f, 0.0f, 0.0f);
+        camera.up = raylib::Vector3(0.0f, 1.0f, 0.0f);
+        camera.fovy = 45.0f;
+        camera.projection = CAMERA_PERSPECTIVE;
     }
     
     void Update() {
+        UpdateSensors();
+        UpdateTouch();
+        UpdateUI();
+        UpdateParticles();
+        Update3DVisualization();
+    }
+    
+    void UpdateSensors() {
+        // Read accelerometer (gravity + motion)
+        // Note: Raylib's GetAccelerometerData() may not be available on all platforms
+        raylib::Vector3 rawAccel(0, -1, 0);  // Default gravity
+        
+#ifdef PLATFORM_ANDROID
+        // Try to get actual accelerometer data
+        // On Android, this should work if sensors are available
+        float ax = 0, ay = -1, az = 0;
+        // Simulate tilt for now - in real implementation, use Android NDK sensor API
+        float time = GetTime();
+        ax = sinf(time * 0.5f) * 0.3f;
+        ay = -1.0f + cosf(time * 0.7f) * 0.2f;
+        az = sinf(time * 0.3f) * 0.2f;
+        rawAccel = raylib::Vector3(ax, ay, az);
+#else
+        // Desktop simulation
+        float time = GetTime();
+        rawAccel.x = sinf(time * 0.5f) * 0.5f;
+        rawAccel.y = -1.0f + cosf(time * 0.7f) * 0.3f;
+        rawAccel.z = sinf(time * 0.3f) * 0.3f;
+#endif
+        
+        accelValue.x = LerpFloat(accelValue.x, rawAccel.x, 0.1f);
+        accelValue.y = LerpFloat(accelValue.y, rawAccel.y, 0.1f);
+        accelValue.z = LerpFloat(accelValue.z, rawAccel.z, 0.1f);
+        accelHistory.Push(accelValue);
+        
+        // Gyroscope data (simulated on desktop, real on Android)
+#ifdef PLATFORM_ANDROID
+        // On Android, use actual gyroscope if available
+        // For this demo, we'll simulate based on accelerometer
+        gyroValue.x = (accelValue.y - 0.5f) * 2.0f;
+        gyroValue.y = (accelValue.x - 0.5f) * 2.0f;
+        gyroValue.z = 0.0f;
+#else
+        // Simulate on desktop
+        float time = GetTime();
+        gyroValue.x = sinf(time * 0.5f) * 0.5f;
+        gyroValue.y = cosf(time * 0.7f) * 0.5f;
+        gyroValue.z = sinf(time * 0.3f) * 0.3f;
+#endif
+        gyroHistory.Push(gyroValue);
+        
+        // Magnetometer (simulated - would need NDK sensor API for real data)
+        magValue.x = LerpFloat(magValue.x, sinf(GetTime() * 0.2f), 0.05f);
+        magValue.y = LerpFloat(magValue.y, cosf(GetTime() * 0.3f), 0.05f);
+        magValue.z = LerpFloat(magValue.z, sinf(GetTime() * 0.1f) * 0.5f, 0.05f);
+        magHistory.Push(magValue);
+        
+        // Calculate compass heading from magnetometer
+        compassTargetAngle = atan2f(magValue.y, magValue.x) * RAD2DEG;
+        compassAngle = LerpFloat(compassAngle, compassTargetAngle, 0.05f);
+    }
+    
+    void UpdateTouch() {
+        // Update touch points
+        for (int i = 0; i < 10; i++) {
+            if (i < GetTouchPointCount()) {
+                raylib::Vector2 pos = GetTouchPosition(i);
+                
+                if (!touchPoints[i].active) {
+                    // New touch
+                    touchPoints[i].position = pos;
+                    touchPoints[i].lastPosition = pos;
+                    touchPoints[i].active = true;
+                    touchPoints[i].id = i;
+                    touchPoints[i].lifetime = 1.0f;
+                    touchPoints[i].color = raylib::Color(
+                        GetRandomValue(100, 255),
+                        GetRandomValue(100, 255),
+                        GetRandomValue(100, 255),
+                        255
+                    );
+                    
+                    // Spawn particles
+                    SpawnTouchParticles(pos, touchPoints[i].color);
+                } else {
+                    // Update existing touch
+                    touchPoints[i].lastPosition = touchPoints[i].position;
+                    touchPoints[i].position = pos;
+                    touchPoints[i].lifetime = 1.0f;
+                    
+                    // Create trail particles
+                    if (Vector2Distance(touchPoints[i].position, touchPoints[i].lastPosition) > 5) {
+                        SpawnTrailParticles(touchPoints[i].position, touchPoints[i].color);
+                    }
+                }
+            } else {
+                if (touchPoints[i].active) {
+                    // Touch ended
+                    SpawnReleaseParticles(touchPoints[i].position, touchPoints[i].color);
+                    touchPoints[i].active = false;
+                }
+                touchPoints[i].lifetime -= GetFrameTime();
+            }
+        }
+    }
+    
+    void UpdateUI() {
+        // Tab switching
+        if (tabTransition > 0) {
+            tabTransition -= GetFrameTime() * 5.0f;
+            if (tabTransition <= 0) {
+                currentTab = (SensorTab)targetTab;
+                tabTransition = 0;
+            }
+        }
+    }
+    
+    void UpdateParticles() {
         for (auto& p : particles) {
             p.Update();
         }
@@ -333,432 +356,581 @@ public:
         );
     }
     
-    void Draw() const {
+    void Update3DVisualization() {
+        // Update cube rotation based on sensors
+        cubeRotation.x += gyroValue.x * GetFrameTime() * 50.0f;
+        cubeRotation.y += gyroValue.y * GetFrameTime() * 50.0f;
+        cubeRotation.z += gyroValue.z * GetFrameTime() * 50.0f;
+        
+        // Apply accelerometer tilt to camera
+        camera.target.x = accelValue.x * 2.0f;
+        camera.target.y = -accelValue.z * 2.0f;
+    }
+    
+    void SpawnTouchParticles(raylib::Vector2 pos, raylib::Color color) {
+        for (int i = 0; i < 20; i++) {
+            float angle = (float)GetRandomValue(0, 360) * DEG2RAD;
+            float speed = (float)GetRandomValue(2, 8);
+            raylib::Vector2 vel(cosf(angle) * speed, sinf(angle) * speed);
+            particles.emplace_back(pos, vel, color, 1.0f, GetRandomValue(3, 8) * GetScaleFactor());
+        }
+    }
+    
+    void SpawnTrailParticles(raylib::Vector2 pos, raylib::Color color) {
+        for (int i = 0; i < 3; i++) {
+            float angle = (float)GetRandomValue(0, 360) * DEG2RAD;
+            float speed = (float)GetRandomValue(1, 3);
+            raylib::Vector2 vel(cosf(angle) * speed, sinf(angle) * speed);
+            particles.emplace_back(pos, vel, color, 0.5f, GetRandomValue(2, 5) * GetScaleFactor());
+        }
+    }
+    
+    void SpawnReleaseParticles(raylib::Vector2 pos, raylib::Color color) {
+        for (int i = 0; i < 30; i++) {
+            float angle = (float)GetRandomValue(0, 360) * DEG2RAD;
+            float speed = (float)GetRandomValue(5, 15);
+            raylib::Vector2 vel(cosf(angle) * speed, sinf(angle) * speed);
+            particles.emplace_back(pos, vel, color, 1.5f, GetRandomValue(4, 10) * GetScaleFactor());
+        }
+    }
+    
+    void Draw() {
+        ClearBackground(raylib::Color(15, 15, 25, 255));
+        
+        DrawParticles();
+        DrawContent();
+        DrawTabs();
+        DrawHeader();
+    }
+    
+    void DrawParticles() {
         for (const auto& p : particles) {
             p.Draw();
         }
     }
     
-    void Clear() {
-        particles.clear();
-    }
-};
-
-// Main game class
-class SpaceShooter {
-private:
-    GameState state;
-    Player player;
-    std::vector<Bullet> bullets;
-    std::vector<Enemy> enemies;
-    ParticleManager particles;
-    float enemySpawnTimer;
-    float difficultyTimer;
-    int wave;
-    
-public:
-    SpaceShooter() {
-        state = MENU;
-        bullets.resize(MAX_BULLETS);
-        enemies.resize(MAX_ENEMIES);
-        enemySpawnTimer = 0;
-        difficultyTimer = 0;
-        wave = 1;
-    }
-    
-    void Reset() {
-        player.Reset();
-        for (auto& b : bullets) b.active = false;
-        for (auto& e : enemies) e.active = false;
-        particles.Clear();
-        enemySpawnTimer = 0;
-        difficultyTimer = 0;
-        wave = 1;
-        state = PLAYING;
-    }
-    
-    void Update() {
-        switch (state) {
-            case MENU:
-                if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER) || 
-                    IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                    Reset();
-                }
+    void DrawContent() {
+        int contentY = (int)(TAB_HEIGHT * 1.5f * GetScaleFactor());
+        int contentHeight = GetGameHeight() - contentY;
+        
+        switch (currentTab) {
+            case TAB_ACCELEROMETER:
+                DrawAccelerometerView(contentY, contentHeight);
                 break;
-                
-            case PLAYING:
-                UpdateGame();
+            case TAB_GYROSCOPE:
+                DrawGyroscopeView(contentY, contentHeight);
                 break;
-                
-            case PAUSED:
-                if (IsKeyPressed(KEY_P) || IsKeyPressed(KEY_ESCAPE)) {
-                    state = PLAYING;
-                }
+            case TAB_MAGNETOMETER:
+                DrawMagnetometerView(contentY, contentHeight);
                 break;
-                
-            case GAME_OVER:
-                if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER) ||
-                    IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-                    state = MENU;
-                }
+            case TAB_TOUCH:
+                DrawTouchView(contentY, contentHeight);
+                break;
+            case TAB_COMPASS:
+                DrawCompassView(contentY, contentHeight);
+                break;
+            case TAB_COUNT:
+                // Not a real tab
                 break;
         }
     }
     
-    void UpdateGame() {
-        // Check pause
-        if (IsKeyPressed(KEY_P)) {
-            state = PAUSED;
-            return;
-        }
-        
-        // Update player
-        player.Update();
-        
-        // Player shooting
-        if ((IsKeyDown(KEY_SPACE) || IsMouseButtonDown(MOUSE_LEFT_BUTTON)) && 
-            player.CanShoot()) {
-            SpawnBullet(player.position, raylib::Vector2(0, -GetBulletSpeed()));
-            player.Shoot();
-        }
-        
-        // Update bullets
-        for (auto& bullet : bullets) {
-            bullet.Update();
-        }
-        
-        // Spawn enemies
-        enemySpawnTimer += GetFrameTime();
-        float spawnRate = std::max(0.5f, 2.0f - difficultyTimer / 30.0f);
-        if (enemySpawnTimer >= spawnRate) {
-            enemySpawnTimer = 0;
-            SpawnEnemy();
-        }
-        
-        // Update difficulty
-        difficultyTimer += GetFrameTime();
-        wave = 1 + (int)(difficultyTimer / 20.0f);
-        
-        // Update enemies
-        for (auto& enemy : enemies) {
-            enemy.Update();
-            
-            // Add engine trail
-            if (enemy.active && GetRandomValue(0, 5) == 0) {
-                float scale = GetScaleFactor();
-                particles.AddTrail(raylib::Vector2(enemy.position.x, enemy.position.y + 10 * scale), RED);
-            }
-        }
-        
-        // Add player engine trail
-        if (GetRandomValue(0, 2) == 0) {
-            float scale = GetScaleFactor();
-            particles.AddTrail(raylib::Vector2(player.position.x - 10 * scale, player.position.y + 15 * scale), ORANGE);
-            particles.AddTrail(raylib::Vector2(player.position.x + 10 * scale, player.position.y + 15 * scale), ORANGE);
-        }
-        
-        // Collision detection
-        CheckCollisions();
-        
-        // Update particles
-        particles.Update();
-        
-        // Check game over
-        if (player.health <= 0) {
-            state = GAME_OVER;
-        }
-    }
-    
-    void SpawnBullet(raylib::Vector2 pos, raylib::Vector2 vel) {
-        for (auto& bullet : bullets) {
-            if (!bullet.active) {
-                bullet.Spawn(pos, vel);
-                break;
-            }
-        }
-    }
-    
-    void SpawnEnemy() {
-        float margin = 50 * GetScaleFactor();
-        float x = (float)GetRandomValue(margin, GetGameWidth() - margin);
-        int health = (GetRandomValue(0, 100) < 20 + wave * 5) ? 2 : 1;
-        float speedMultiplier = 1.0f + difficultyTimer / 60.0f;
-        
-        for (auto& enemy : enemies) {
-            if (!enemy.active) {
-                enemy.Spawn(
-                    raylib::Vector2(x, -30 * GetScaleFactor()),
-                    raylib::Vector2(0, GetEnemySpeed() * speedMultiplier),
-                    health
-                );
-                break;
-            }
-        }
-    }
-    
-    void CheckCollisions() {
-        // Bullet-Enemy collisions
-        for (auto& bullet : bullets) {
-            if (!bullet.active) continue;
-            
-            for (auto& enemy : enemies) {
-                if (enemy.CheckCollision(bullet)) {
-                    bullet.active = false;
-                    enemy.health--;
-                    
-                    if (enemy.health <= 0) {
-                        particles.AddExplosion(enemy.position, enemy.color);
-                        player.score += 10;
-                        enemy.active = false;
-                    }
-                    break;
-                }
-            }
-        }
-        
-        // Player-Enemy collisions
-        for (auto& enemy : enemies) {
-            if (player.CheckCollision(enemy)) {
-                particles.AddExplosion(enemy.position, RED);
-                particles.AddExplosion(player.position, BLUE);
-                player.TakeDamage();
-                enemy.active = false;
-            }
-        }
-    }
-    
-    void Draw() {
-        ClearBackground(BLACK);
-        
-        // Draw starfield background
-        DrawStarfield();
-        
-        switch (state) {
-            case MENU:
-                DrawMenu();
-                break;
-                
-            case PLAYING:
-                DrawGame();
-                break;
-                
-            case PAUSED:
-                DrawGame();
-                DrawPaused();
-                break;
-                
-            case GAME_OVER:
-                DrawGame();
-                DrawGameOver();
-                break;
-        }
-    }
-    
-    void DrawStarfield() {
-        static float starOffset = 0;
-        starOffset += 0.5f * GetScaleFactor();
-        if (starOffset > GetGameHeight()) starOffset = 0;
-        
-        int starCount = (int)(100 * GetScaleFactor());
-        for (int i = 0; i < starCount; i++) {
-            int x = (i * 97) % GetGameWidth();
-            int y = (int)fmodf((float)(i * 67) + starOffset, (float)GetGameHeight());
-            int brightness = 100 + (i * 13) % 156;
-            raylib::Color starColor((unsigned char)brightness, (unsigned char)brightness, 
-                                    (unsigned char)brightness, 255);
-            DrawPixel(x, y, starColor);
-        }
-    }
-    
-    void DrawMenu() {
-        int centerX = GetGameWidth() / 2;
+    void DrawAccelerometerView(int y, int height) {
         float scale = GetScaleFactor();
-        int titleSize = (int)(60 * scale);
-        int instructionSize = (int)(30 * scale);
-        int textSize = (int)(16 * scale);
+        int centerX = GetGameWidth() / 2;
+        
+        // Card background
+        DrawCard(CARD_MARGIN, y + CARD_MARGIN, GetGameWidth() - CARD_MARGIN * 2, 200 * scale);
         
         // Title
-        const char* title = "SPACE DEFENDER";
-        int titleWidth = MeasureText(title, titleSize);
-        DrawText(title, centerX - titleWidth/2, (int)(150 * scale), titleSize, SKYBLUE);
-        DrawText(title, centerX - titleWidth/2 - 2, (int)(148 * scale), titleSize, BLUE);
+        ::DrawText("ACCELEROMETER", centerX - 150 * scale, y + CARD_MARGIN + CARD_PADDING, 24 * scale, SKYBLUE);
+        ::DrawText("Measures device acceleration + gravity", 
+                 centerX - 180 * scale, y + CARD_MARGIN + CARD_PADDING + 30 * scale, 
+                 14 * scale, LIGHTGRAY);
         
-        // Instructions
-        const char* instruction = "PRESS SPACE TO START";
-#ifdef PLATFORM_ANDROID
-        instruction = "TAP TO START";
-#endif
-        int instrWidth = MeasureText(instruction, instructionSize);
-        DrawText(instruction, centerX - instrWidth/2, (int)(300 * scale), instructionSize, WHITE);
+        // Values
+        int valY = y + CARD_MARGIN + 80 * scale;
+        DrawSensorValue("X", accelValue.x, centerX - 200 * scale, valY, RED);
+        DrawSensorValue("Y", accelValue.y, centerX - 20 * scale, valY, GREEN);
+        DrawSensorValue("Z", accelValue.z, centerX + 160 * scale, valY, BLUE);
         
-        // Controls
-        const char* controlsTitle = "CONTROLS:";
-        int controlsTitleWidth = MeasureText(controlsTitle, (int)(20 * scale));
-        DrawText(controlsTitle, centerX - controlsTitleWidth/2, (int)(380 * scale), (int)(20 * scale), YELLOW);
+        // 3D visualization
+        Draw3DCube(y + 250 * scale, 300 * scale);
         
-#ifdef PLATFORM_ANDROID
-        int y = (int)(410 * scale);
-        const char* touch = "Touch to move";
-        const char* shoot = "Auto shoot";
-        int touchWidth = MeasureText(touch, textSize);
-        int shootWidth = MeasureText(shoot, textSize);
-        DrawText(touch, centerX - touchWidth/2, y, textSize, WHITE);
-        DrawText(shoot, centerX - shootWidth/2, y + (int)(25 * scale), textSize, WHITE);
-#else
-        int y = (int)(410 * scale);
-        const char* move = "WASD or Arrow Keys - Move";
-        const char* shoot = "SPACE - Shoot";
-        const char* pause = "P - Pause";
-        int moveWidth = MeasureText(move, textSize);
-        int shootWidth = MeasureText(shoot, textSize);
-        int pauseWidth = MeasureText(pause, textSize);
-        DrawText(move, centerX - moveWidth/2, y, textSize, WHITE);
-        DrawText(shoot, centerX - shootWidth/2, y + (int)(25 * scale), textSize, WHITE);
-        DrawText(pause, centerX - pauseWidth/2, y + (int)(50 * scale), textSize, WHITE);
-#endif
+        // Graph
+        DrawVectorGraph(accelHistory, y + 580 * scale, 250 * scale, "Acceleration History");
+    }
+    
+    void DrawGyroscopeView(int y, int height) {
+        float scale = GetScaleFactor();
+        int centerX = GetGameWidth() / 2;
         
-        // Animated ship
-        float time = GetTime();
-        float shipY = 240 * scale + sinf(time * 2) * 10 * scale;
-        DrawTriangle(
-            raylib::Vector2(centerX, shipY),
-            raylib::Vector2(centerX - 15 * scale, shipY + 35 * scale),
-            raylib::Vector2(centerX + 15 * scale, shipY + 35 * scale),
-            SKYBLUE
+        DrawCard(CARD_MARGIN, y + CARD_MARGIN, GetGameWidth() - CARD_MARGIN * 2, 200 * scale);
+        
+        ::DrawText("GYROSCOPE", centerX - 120 * scale, y + CARD_MARGIN + CARD_PADDING, 24 * scale, ORANGE);
+        ::DrawText("Measures rotation rate", 
+                 centerX - 100 * scale, y + CARD_MARGIN + CARD_PADDING + 30 * scale, 
+                 14 * scale, LIGHTGRAY);
+        
+        int valY = y + CARD_MARGIN + 80 * scale;
+        DrawSensorValue("Pitch", gyroValue.x, centerX - 220 * scale, valY, PINK);
+        DrawSensorValue("Roll", gyroValue.y, centerX - 40 * scale, valY, YELLOW);
+        DrawSensorValue("Yaw", gyroValue.z, centerX + 140 * scale, valY, PURPLE);
+        
+        // Rotating wheel visualization
+        DrawRotationWheel(centerX, y + 350 * scale, 150 * scale);
+        
+        DrawVectorGraph(gyroHistory, y + 580 * scale, 250 * scale, "Rotation Rate History");
+    }
+    
+    void DrawMagnetometerView(int y, int height) {
+        float scale = GetScaleFactor();
+        int centerX = GetGameWidth() / 2;
+        
+        DrawCard(CARD_MARGIN, y + CARD_MARGIN, GetGameWidth() - CARD_MARGIN * 2, 200 * scale);
+        
+        ::DrawText("MAGNETOMETER", centerX - 150 * scale, y + CARD_MARGIN + CARD_PADDING, 24 * scale, VIOLET);
+        ::DrawText("Measures magnetic field strength", 
+                 centerX - 160 * scale, y + CARD_MARGIN + CARD_PADDING + 30 * scale, 
+                 14 * scale, LIGHTGRAY);
+        
+        int valY = y + CARD_MARGIN + 80 * scale;
+        DrawSensorValue("X", magValue.x, centerX - 200 * scale, valY, RED);
+        DrawSensorValue("Y", magValue.y, centerX - 20 * scale, valY, GREEN);
+        DrawSensorValue("Z", magValue.z, centerX + 160 * scale, valY, BLUE);
+        
+        // Magnetic field visualization
+        DrawMagneticField(centerX, y + 350 * scale, 150 * scale);
+        
+        DrawVectorGraph(magHistory, y + 580 * scale, 250 * scale, "Magnetic Field History");
+    }
+    
+    void DrawTouchView(int y, int height) {
+        float scale = GetScaleFactor();
+        int centerX = GetGameWidth() / 2;
+        
+        DrawCard(CARD_MARGIN, y + CARD_MARGIN, GetGameWidth() - CARD_MARGIN * 2, 120 * scale);
+        
+        ::DrawText("TOUCH INPUT", centerX - 120 * scale, y + CARD_MARGIN + CARD_PADDING, 24 * scale, GOLD);
+        ::DrawText("Touch the screen to create particles!", 
+                 centerX - 180 * scale, y + CARD_MARGIN + CARD_PADDING + 30 * scale, 
+                 14 * scale, LIGHTGRAY);
+        
+        int touchCount = 0;
+        for (const auto& tp : touchPoints) {
+            if (tp.active) touchCount++;
+        }
+        ::DrawText(TextFormat("Active touches: %d", touchCount), 
+                 centerX - 100 * scale, y + CARD_MARGIN + 75 * scale, 
+                 18 * scale, WHITE);
+        
+        // Draw active touch points
+        for (const auto& tp : touchPoints) {
+            if (tp.active) {
+                // Glow effect
+                DrawCircleGradient(tp.position.x, tp.position.y, 50 * scale, 
+                                   Fade(tp.color, 0.3f), Fade(tp.color, 0.0f));
+                
+                // Touch point
+                DrawCircleV(tp.position, 30 * scale, Fade(tp.color, 0.5f));
+                DrawCircleV(tp.position, 25 * scale, tp.color);
+                DrawCircleLinesV(tp.position, 35 * scale, WHITE);
+                
+                // Touch ID
+                ::DrawText(TextFormat("%d", tp.id), 
+                         tp.position.x - 5 * scale, tp.position.y - 10 * scale, 
+                         20 * scale, BLACK);
+                
+                // Trail line
+                if (Vector2Distance(tp.position, tp.lastPosition) > 1) {
+                    DrawLineEx(tp.lastPosition, tp.position, 3 * scale, Fade(tp.color, 0.7f));
+                }
+            }
+        }
+    }
+    
+    void DrawCompassView(int y, int height) {
+        float scale = GetScaleFactor();
+        int centerX = GetGameWidth() / 2;
+        
+        DrawCard(CARD_MARGIN, y + CARD_MARGIN, GetGameWidth() - CARD_MARGIN * 2, 150 * scale);
+        
+        ::DrawText("COMPASS", centerX - 100 * scale, y + CARD_MARGIN + CARD_PADDING, 24 * scale, LIME);
+        ::DrawText("Based on magnetometer data", 
+                 centerX - 140 * scale, y + CARD_MARGIN + CARD_PADDING + 30 * scale, 
+                 14 * scale, LIGHTGRAY);
+        
+        ::DrawText(TextFormat("Heading: %.1f°", compassAngle), 
+                 centerX - 80 * scale, y + CARD_MARGIN + 90 * scale, 
+                 20 * scale, YELLOW);
+        
+        // Large compass
+        DrawCompass(centerX, y + 350 * scale, 200 * scale);
+    }
+    
+    void DrawCard(int x, int y, int width, int height) {
+        // Shadow
+        DrawRectangle(x + 5, y + 5, width, height, Fade(BLACK, 0.3f));
+        // Card background
+        DrawRectangleGradientV(x, y, width, height, 
+                               raylib::Color(30, 30, 45, 255), 
+                               raylib::Color(20, 20, 35, 255));
+        // Border
+        DrawRectangleLinesEx(Rectangle{(float)x, (float)y, (float)width, (float)height}, 
+                            2, raylib::Color(60, 60, 80, 255));
+    }
+    
+    void DrawSensorValue(const char* label, float value, int x, int y, raylib::Color color) {
+        float scale = GetScaleFactor();
+        
+        // Label
+        ::DrawText(label, x, y, 18 * scale, color);
+        
+        // Value
+        std::string valStr = FormatFloat(value, 3);
+        ::DrawText(valStr.c_str(), x, y + 25 * scale, 20 * scale, WHITE);
+        
+        // Bar indicator
+        int barWidth = 150 * scale;
+        int barHeight = 12 * scale;
+        int barY = y + 55 * scale;
+        
+        DrawRectangle(x, barY, barWidth, barHeight, raylib::Color(40, 40, 60, 255));
+        
+        float normalized = (value + 2.0f) / 4.0f;
+        normalized = ClampFloat(normalized, 0.0f, 1.0f);
+        int fillWidth = (int)(barWidth * normalized);
+        
+        DrawRectangle(x, barY, fillWidth, barHeight, color);
+        DrawRectangleLinesEx(Rectangle{(float)x, (float)barY, (float)barWidth, (float)barHeight}, 
+                            1, color);
+    }
+    
+    void Draw3DCube(int y, int height) {
+        int centerX = GetGameWidth() / 2;
+        float scale = GetScaleFactor();
+        
+        // 3D view area
+        BeginMode3D(camera);
+        
+        // Apply rotations from sensors
+        rlPushMatrix();
+        rlRotatef(cubeRotation.x, 1, 0, 0);
+        rlRotatef(cubeRotation.y, 0, 1, 0);
+        rlRotatef(cubeRotation.z, 0, 0, 1);
+        
+        DrawCube(raylib::Vector3(0, 0, 0), 4.0f, 4.0f, 4.0f, SKYBLUE);
+        DrawCubeWires(raylib::Vector3(0, 0, 0), 4.0f, 4.0f, 4.0f, DARKBLUE);
+        
+        // Axes
+        DrawLine3D(raylib::Vector3(0, 0, 0), raylib::Vector3(3, 0, 0), RED);
+        DrawLine3D(raylib::Vector3(0, 0, 0), raylib::Vector3(0, 3, 0), GREEN);
+        DrawLine3D(raylib::Vector3(0, 0, 0), raylib::Vector3(0, 0, 3), BLUE);
+        
+        rlPopMatrix();
+        
+        DrawGrid(10, 1.0f);
+        
+        EndMode3D();
+    }
+    
+    void DrawVectorGraph(const Vector3History& history, int y, int height, const char* title) {
+        float scale = GetScaleFactor();
+        int margin = CARD_MARGIN;
+        int width = GetGameWidth() - margin * 2;
+        
+        DrawCard(margin, y, width, height);
+        
+        ::DrawText(title, margin + CARD_PADDING, y + CARD_PADDING, 16 * scale, LIGHTGRAY);
+        
+        int graphY = y + 40 * scale;
+        int graphHeight = height - 60 * scale;
+        int graphX = margin + CARD_PADDING;
+        int graphWidth = width - CARD_PADDING * 2;
+        
+        // Background
+        DrawRectangle(graphX, graphY, graphWidth, graphHeight, raylib::Color(20, 20, 30, 255));
+        
+        // Grid lines
+        for (int i = 0; i <= 4; i++) {
+            int lineY = graphY + (graphHeight * i) / 4;
+            DrawLine(graphX, lineY, graphX + graphWidth, lineY, raylib::Color(40, 40, 50, 255));
+        }
+        
+        DrawLine(graphX, graphY + graphHeight/2, graphX + graphWidth, graphY + graphHeight/2, 
+                 raylib::Color(60, 60, 70, 255));
+        
+        // Draw lines
+        DrawGraphLine(history.x.GetData(), graphX, graphY, graphWidth, graphHeight, RED);
+        DrawGraphLine(history.y.GetData(), graphX, graphY, graphWidth, graphHeight, GREEN);
+        DrawGraphLine(history.z.GetData(), graphX, graphY, graphWidth, graphHeight, BLUE);
+        
+        // Legend
+        int legendX = graphX + graphWidth - 120 * scale;
+        int legendY = graphY + 10 * scale;
+        ::DrawText("X", legendX, legendY, 14 * scale, RED);
+        ::DrawText("Y", legendX + 30 * scale, legendY, 14 * scale, GREEN);
+        ::DrawText("Z", legendX + 60 * scale, legendY, 14 * scale, BLUE);
+    }
+    
+    void DrawGraphLine(const std::deque<float>& data, int x, int y, int width, int height, raylib::Color color) {
+        if (data.size() < 2) return;
+        
+        float xStep = (float)width / (GRAPH_HISTORY - 1);
+        int centerY = y + height / 2;
+        float scale = height / 6.0f;
+        
+        for (size_t i = 1; i < data.size(); i++) {
+            float x1 = x + (i - 1) * xStep;
+            float y1 = centerY - data[i-1] * scale;
+            float x2 = x + i * xStep;
+            float y2 = centerY - data[i] * scale;
+            
+            DrawLineEx(raylib::Vector2(x1, y1), raylib::Vector2(x2, y2), 2, color);
+        }
+    }
+    
+    void DrawRotationWheel(int centerX, int centerY, float radius) {
+        float scale = GetScaleFactor();
+        
+        // Outer circle
+        DrawCircleGradient(centerX, centerY, radius * 1.2f, 
+                          Fade(ORANGE, 0.2f), Fade(ORANGE, 0.0f));
+        DrawCircleLines(centerX, centerY, radius, ORANGE);
+        
+        // Inner wheel
+        DrawCircle(centerX, centerY, radius * 0.9f, raylib::Color(30, 30, 45, 255));
+        
+        // Rotation indicators
+        float angleX = gyroValue.x * 30;
+        float angleY = gyroValue.y * 30;
+        
+        // X axis (pitch) - vertical line
+        float x1 = centerX + sinf(angleX * DEG2RAD) * radius * 0.8f;
+        float y1 = centerY - cosf(angleX * DEG2RAD) * radius * 0.8f;
+        float x2 = centerX - sinf(angleX * DEG2RAD) * radius * 0.8f;
+        float y2 = centerY + cosf(angleX * DEG2RAD) * radius * 0.8f;
+        DrawLineEx(raylib::Vector2(x1, y1), raylib::Vector2(x2, y2), 4 * scale, PINK);
+        
+        // Y axis (roll) - horizontal line
+        float x3 = centerX + cosf(angleY * DEG2RAD) * radius * 0.8f;
+        float y3 = centerY + sinf(angleY * DEG2RAD) * radius * 0.8f;
+        float x4 = centerX - cosf(angleY * DEG2RAD) * radius * 0.8f;
+        float y4 = centerY - sinf(angleY * DEG2RAD) * radius * 0.8f;
+        DrawLineEx(raylib::Vector2(x3, y3), raylib::Vector2(x4, y4), 4 * scale, YELLOW);
+        
+        // Center dot
+        DrawCircle(centerX, centerY, 8 * scale, WHITE);
+    }
+    
+    void DrawMagneticField(int centerX, int centerY, float radius) {
+        float scale = GetScaleFactor();
+        
+        // Field lines
+        for (int i = 0; i < 8; i++) {
+            float angle = (i * 45) * DEG2RAD;
+            float dist = radius * (0.5f + fabsf(sinf(GetTime() + i)) * 0.5f);
+            
+            float x = centerX + cosf(angle) * dist;
+            float y = centerY + sinf(angle) * dist;
+            
+            DrawCircleV(raylib::Vector2(x, y), 5 * scale, 
+                       LerpColor(VIOLET, PURPLE, (float)i / 8.0f));
+        }
+        
+        // Magnetic vector
+        float magAngle = atan2f(magValue.y, magValue.x);
+        float magStrength = sqrtf(magValue.x * magValue.x + magValue.y * magValue.y);
+        float vecLen = magStrength * radius * 0.8f;
+        
+        float endX = centerX + cosf(magAngle) * vecLen;
+        float endY = centerY + sinf(magAngle) * vecLen;
+        
+        DrawLineEx(raylib::Vector2(centerX, centerY), raylib::Vector2(endX, endY), 
+                   4 * scale, VIOLET);
+        DrawCircleV(raylib::Vector2(endX, endY), 10 * scale, VIOLET);
+        
+        // Center
+        DrawCircle(centerX, centerY, 15 * scale, raylib::Color(30, 30, 45, 255));
+        DrawCircleLines(centerX, centerY, 15 * scale, VIOLET);
+    }
+    
+    void DrawCompass(int centerX, int centerY, float radius) {
+        float scale = GetScaleFactor();
+        
+        // Outer ring
+        DrawCircleGradient(centerX, centerY, radius * 1.1f, 
+                          Fade(LIME, 0.3f), Fade(LIME, 0.0f));
+        DrawCircle(centerX, centerY, radius, raylib::Color(30, 30, 45, 255));
+        DrawCircleLines(centerX, centerY, radius, LIME);
+        DrawCircleLines(centerX, centerY, radius * 0.95f, DARKGREEN);
+        
+        // Cardinal directions
+        const char* directions[] = {"N", "E", "S", "W"};
+        raylib::Color dirColors[] = {RED, LIGHTGRAY, LIGHTGRAY, LIGHTGRAY};
+        
+        for (int i = 0; i < 4; i++) {
+            float angle = (i * 90 - 90) * DEG2RAD;
+            float x = centerX + cosf(angle) * radius * 0.8f;
+            float y = centerY + sinf(angle) * radius * 0.8f;
+            
+            int textWidth = MeasureText(directions[i], 24 * scale);
+            ::DrawText(directions[i], x - textWidth/2, y - 12 * scale, 24 * scale, dirColors[i]);
+        }
+        
+        // Degree marks
+        for (int i = 0; i < 36; i++) {
+            float angle = (i * 10) * DEG2RAD;
+            float r1 = radius * 0.9f;
+            float r2 = (i % 3 == 0) ? radius * 0.85f : radius * 0.88f;
+            
+            float x1 = centerX + cosf(angle - PI/2) * r1;
+            float y1 = centerY + sinf(angle - PI/2) * r1;
+            float x2 = centerX + cosf(angle - PI/2) * r2;
+            float y2 = centerY + sinf(angle - PI/2) * r2;
+            
+            DrawLineEx(raylib::Vector2(x1, y1), raylib::Vector2(x2, y2), 
+                      2 * scale, DARKGREEN);
+        }
+        
+        // Needle
+        float needleAngle = (compassAngle - 90) * DEG2RAD;
+        
+        // North (red)
+        raylib::Vector2 northTip(
+            centerX + cosf(needleAngle) * radius * 0.7f,
+            centerY + sinf(needleAngle) * radius * 0.7f
         );
+        raylib::Vector2 base1(
+            centerX + cosf(needleAngle + PI/2) * 8 * scale,
+            centerY + sinf(needleAngle + PI/2) * 8 * scale
+        );
+        raylib::Vector2 base2(
+            centerX + cosf(needleAngle - PI/2) * 8 * scale,
+            centerY + sinf(needleAngle - PI/2) * 8 * scale
+        );
+        
+        DrawTriangle(northTip, base1, base2, RED);
+        DrawTriangleLines(northTip, base1, base2, DARKGRAY);
+        
+        // South (white)
+        raylib::Vector2 southTip(
+            centerX - cosf(needleAngle) * radius * 0.7f,
+            centerY - sinf(needleAngle) * radius * 0.7f
+        );
+        
+        DrawTriangle(southTip, base1, base2, LIGHTGRAY);
+        DrawTriangleLines(southTip, base1, base2, DARKGRAY);
+        
+        // Center pivot
+        DrawCircle(centerX, centerY, 12 * scale, YELLOW);
+        DrawCircleLines(centerX, centerY, 12 * scale, GOLD);
+        
+        // Heading text
+        ::DrawText(TextFormat("%.0f°", fmodf(compassAngle + 360.0f, 360.0f)), 
+                 centerX - 30 * scale, centerY + radius + 30 * scale, 
+                 24 * scale, YELLOW);
     }
     
-    void DrawGame() {
-        // Draw game objects
-        particles.Draw();
-        
-        for (const auto& bullet : bullets) {
-            bullet.Draw();
-        }
-        
-        for (const auto& enemy : enemies) {
-            enemy.Draw();
-        }
-        
-        player.Draw();
-        
-        // Draw UI
-        DrawUI();
-    }
-    
-    void DrawUI() {
+    void DrawTabs() {
         float scale = GetScaleFactor();
-        int scoreSize = (int)(20 * scale);
-        int waveSize = (int)(16 * scale);
-        int margin = (int)(10 * scale);
+        int tabWidth = GetGameWidth() / TAB_COUNT;
+        int tabHeight = TAB_HEIGHT * scale;
         
-        // Score
-        DrawText(TextFormat("SCORE: %d", player.score), margin, margin, scoreSize, YELLOW);
-        
-        // Wave
-        DrawText(TextFormat("WAVE: %d", wave), margin, margin + scoreSize + 5, waveSize, SKYBLUE);
-        
-        // Health
-        int healthX = GetGameWidth() - (int)(180 * scale);
-        DrawText("HEALTH:", healthX, margin, scoreSize, RED);
-        for (int i = 0; i < player.health; i++) {
-            DrawRectangle(healthX + (int)(90 * scale) + i * (int)(18 * scale), 
-                         margin + (int)(3 * scale), 
-                         (int)(15 * scale), (int)(15 * scale), RED);
+        for (int i = 0; i < TAB_COUNT; i++) {
+            int x = i * tabWidth;
+            int y = TAB_HEIGHT * scale * 0.5f;
+            
+            raylib::Color tabColor = (i == currentTab) ? 
+                raylib::Color(40, 40, 60, 255) : raylib::Color(25, 25, 40, 255);
+            
+            // Tab background
+            DrawRectangle(x, y, tabWidth, tabHeight, tabColor);
+            
+            // Highlight if active
+            if (i == currentTab) {
+                DrawRectangle(x, y + tabHeight - 4 * scale, tabWidth, 4 * scale, SKYBLUE);
+            }
+            
+            // Border
+            DrawLine(x + tabWidth, y, x + tabWidth, y + tabHeight, 
+                    raylib::Color(60, 60, 80, 255));
+            
+            // Tab text
+            int textSize = 16 * scale;
+            int textWidth = MeasureText(TAB_NAMES[i], textSize);
+            ::DrawText(TAB_NAMES[i], 
+                    x + (tabWidth - textWidth) / 2, 
+                    y + (tabHeight - textSize) / 2,
+                    textSize, 
+                    (i == currentTab) ? WHITE : LIGHTGRAY);
         }
         
-        // FPS (smaller on mobile)
-#ifdef PLATFORM_ANDROID
-        if (IsLandscape()) {
-            DrawFPS(GetGameWidth() - (int)(80 * scale), GetGameHeight() - (int)(25 * scale));
+        // Handle tab clicks
+        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            raylib::Vector2 mousePos = GetMousePosition();
+            if (mousePos.y >= TAB_HEIGHT * scale * 0.5f && 
+                mousePos.y <= TAB_HEIGHT * scale * 1.5f) {
+                int clickedTab = (int)(mousePos.x / tabWidth);
+                if (clickedTab >= 0 && clickedTab < TAB_COUNT && clickedTab != currentTab) {
+                    targetTab = clickedTab;
+                    tabTransition = 1.0f;
+                    currentTab = (SensorTab)clickedTab;
+                }
+            }
         }
-#else
-        DrawFPS(GetGameWidth() - (int)(80 * scale), GetGameHeight() - (int)(25 * scale));
-#endif
     }
     
-    void DrawPaused() {
-        DrawRectangle(0, 0, GetGameWidth(), GetGameHeight(), {0, 0, 0, 180});
-        int centerX = GetGameWidth() / 2;
-        int centerY = GetGameHeight() / 2;
+    void DrawHeader() {
         float scale = GetScaleFactor();
         
-        const char* paused = "PAUSED";
-        int pausedSize = (int)(60 * scale);
-        int pausedWidth = MeasureText(paused, pausedSize);
-        DrawText(paused, centerX - pausedWidth/2, centerY - (int)(40 * scale), pausedSize, WHITE);
+        // Header background
+        DrawRectangleGradientV(0, 0, GetGameWidth(), TAB_HEIGHT * scale * 0.5f,
+                               raylib::Color(20, 20, 35, 255),
+                               raylib::Color(15, 15, 25, 255));
         
-        const char* cont = "Press P to continue";
-        int contSize = (int)(20 * scale);
-        int contWidth = MeasureText(cont, contSize);
-        DrawText(cont, centerX - contWidth/2, centerY + (int)(40 * scale), contSize, LIGHTGRAY);
-    }
-    
-    void DrawGameOver() {
-        DrawRectangle(0, 0, GetGameWidth(), GetGameHeight(), {0, 0, 0, 180});
-        int centerX = GetGameWidth() / 2;
-        int centerY = GetGameHeight() / 2;
-        float scale = GetScaleFactor();
+        // Title
+        const char* title = "SENSOR DEMO";
+        int titleSize = 28 * scale;
+        int titleWidth = MeasureText(title, titleSize);
+        ::DrawText(title, (GetGameWidth() - titleWidth) / 2, 10 * scale, titleSize, GOLD);
         
-        const char* gameOver = "GAME OVER";
-        int gameOverSize = (int)(60 * scale);
-        int gameOverWidth = MeasureText(gameOver, gameOverSize);
-        DrawText(gameOver, centerX - gameOverWidth/2, centerY - (int)(80 * scale), gameOverSize, RED);
-        
-        const char* finalScore = TextFormat("Final Score: %d", player.score);
-        int scoreSize = (int)(30 * scale);
-        int scoreWidth = MeasureText(finalScore, scoreSize);
-        DrawText(finalScore, centerX - scoreWidth/2, centerY + (int)(20 * scale), scoreSize, YELLOW);
-        
-        const char* waveText = TextFormat("Wave Reached: %d", wave);
-        int waveSize = (int)(25 * scale);
-        int waveWidth = MeasureText(waveText, waveSize);
-        DrawText(waveText, centerX - waveWidth/2, centerY + (int)(60 * scale), waveSize, SKYBLUE);
-                 
-        const char* restart = "Press SPACE to return to menu";
-#ifdef PLATFORM_ANDROID
-        restart = "Tap to return to menu";
-#endif
-        int restartSize = (int)(20 * scale);
-        int restartWidth = MeasureText(restart, restartSize);
-        DrawText(restart, centerX - restartWidth/2, centerY + (int)(120 * scale), restartSize, WHITE);
+        // Subtitle
+        const char* subtitle = "Android NDK Sensors Visualization";
+        int subtitleSize = 12 * scale;
+        int subtitleWidth = MeasureText(subtitle, subtitleSize);
+        ::DrawText(subtitle, (GetGameWidth() - subtitleWidth) / 2, 
+                45 * scale, subtitleSize, LIGHTGRAY);
     }
 };
 
 int main() {
     // Initialize window
 #ifdef PLATFORM_ANDROID
-    // On Android, use device screen size
-    raylib::Window window(0, 0, "Space Defender");
-    // Enable full screen on Android
-    // SetConfigFlags(FLAG_FULLSCREEN_MODE);
+    raylib::Window window(0, 0, "Sensor Demo");
 #else
-    // On desktop, use fixed size
-    raylib::Window window(800, 600, "Space Defender");
+    raylib::Window window(800, 1200, "Sensor Demo");
 #endif
+
     SetTargetFPS(60);
     
 #ifdef PLATFORM_ANDROID
-    std::cout << "Space Defender - Android Version" << std::endl;
+    std::cout << "Sensor Demo - Android Version" << std::endl;
 #else
-    std::cout << "Space Defender - Desktop Version" << std::endl;
-    std::cout << "Controls: WASD/Arrows to move, SPACE to shoot, P to pause" << std::endl;
+    std::cout << "Sensor Demo - Desktop Version (Simulated Sensors)" << std::endl;
 #endif
+
+    SensorDemoApp app;
     
-    // Initialize game
-    SpaceShooter game;
-    
-    // Main game loop
+    // Main loop
     while (!window.ShouldClose()) {
-        // Update
-        game.Update();
+        app.Update();
         
-        // Draw
         window.BeginDrawing();
-        game.Draw();
-        window.EndDrawing();
-    }
-    
-    std::cout << "Thanks for playing!" << std::endl;
-    return 0;
+        app.Draw();
+    window.EndDrawing();
+  }
+
+    std::cout << "Sensor Demo finished!" << std::endl;
+  return 0;
 }

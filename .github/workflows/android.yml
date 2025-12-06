@@ -2,9 +2,11 @@ name: Android CI
 
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: 
+      - 'demo**'  # 只在 demo 开头的分支触发，如 demo, demo-sensor, demo-game 等
   pull_request:
-    branches: [ main, master, develop ]
+    branches:
+      - 'demo**'
   workflow_dispatch:
 
 jobs:
