@@ -16,6 +16,18 @@ target("cppray")
     add_files("src/*.cpp") 
     add_packages("raylib-cpp")
     
+    -- 复制 assets 目录到安装目录
+    after_install(function (target)
+        import("core.project.config")
+        local installdir = config.get("installdir") or "build"
+        
+        -- 复制 assets 目录
+        if os.isdir("assets") then
+            os.cp("assets", path.join(installdir, "assets"))
+            print("Copied assets to " .. path.join(installdir, "assets"))
+        end
+    end)
+    
     -- Android 特定配置
     if is_plat("android") then
         -- Android平台添加所有源文件 
