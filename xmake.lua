@@ -17,36 +17,12 @@ target("cppray")
     add_packages("raylib-cpp")
     
     -- Android 特定配置
-    if is_plat("android") then
-        -- Android平台添加所有源文件 
-        add_files("android/jni_interface.cxx") 
+    if is_plat("android") then 
         
-        set_kind("shared")
-        add_ldflags("-shared") --fullscreen??
-        add_defines("PLATFORM_ANDROID") 
-        -- add_syslinks("log", "android", "EGL", "GLESv2", "OpenSLES")
-         
-        on_load(function (target) 
-            import("core.tool.toolchain")
-            local toolchain_ndk = toolchain.load("ndk", {plat = target:plat(), arch = target:arch()})
-            if not toolchain_ndk then
-                raise("NDK toolchain not found! Please configure NDK properly.")
-            end
-            
-            local ndk_root = toolchain_ndk:config("ndk")
-            if not ndk_root then
-                raise("NDK path not set! Please set NDK path properly.")
-            end
-            
-            local native_app_glue_path = path.join(ndk_root, "sources", "android", "native_app_glue")
-            
-            -- 添加NDK的android_native_app_glue
-            target:add("files", path.join(native_app_glue_path, "android_native_app_glue.c"))
-            target:add("includedirs", native_app_glue_path)
-        end)
-        
-        -- 添加 androidcpp 规则用于 APK 打包
-        add_rules("androidcpp", {
+        set_kind("shared") 
+        add_defines("PLATFORM_ANDROID") -- raylib need this for android
+ 
+        add_rules("android.cpp", {
             android_sdk_version = "35",
             android_manifest = "android/AndroidManifest.xml",
             android_res = "android/res",
@@ -54,7 +30,7 @@ target("cppray")
             jni_interface = "android/jni_interface.cxx",
             android_assets = "assets",
             apk_output_path = "build",
-            package_name = "com.game.raycpp",
+            package_name = "com.game.raygame",
             activity_name = "android.app.NativeActivity"
         })
     end

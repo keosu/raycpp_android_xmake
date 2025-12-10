@@ -16,7 +16,7 @@ function main(target, apk_output_path, package_name, activity_name)
         "install", final_apk,
     }
 
-    cprint("{green}install apk...")
+    cprint("{green}[Installing apk] ...")
     os.vrunv(adb, install_argv)
 
     local run_argv = {
@@ -26,6 +26,6 @@ function main(target, apk_output_path, package_name, activity_name)
         package_name .. "/" .. activity_name
     }
 
-    cprint("{green}run apk...")
+    cprint("{green}[Run apk] ...")
     os.vrunv(adb, run_argv)
 end
