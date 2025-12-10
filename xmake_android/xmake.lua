@@ -5,7 +5,7 @@ rule("androidcpp")
             local android_manifest = target:extraconf("rules", "androidcpp", "android_manifest")
             local android_res = target:extraconf("rules", "androidcpp", "android_res")
             local android_assets = target:extraconf("rules", "androidcpp", "android_assets")
-            local keystore = target:extraconf("rules", "androidcpp", "keystore") or path.join("xmake_android", "debug.jks")
+            local keystore = target:extraconf("rules", "androidcpp", "keystore") or path.join("android", "debug.jks")
             local keystore_pass = target:extraconf("rules", "androidcpp", "keystore_pass") or "123456"
             local apk_output_path = target:extraconf("rules", "androidcpp", "apk_output_path") or "."
             local attachedjar = target:extraconf("rules", "androidcpp", "attachedjar")
