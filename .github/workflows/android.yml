@@ -66,19 +66,13 @@ jobs:
       run: |
         xmake f -p android -a arm64-v8a --ndk=$ANDROID_NDK_HOME -m release -y
         
-    - name: Build Android APK
+    - name: Build shared library
       run: |
         xmake build -v
-        
-    - name: Install APK to build directory
+
+    - name: Generate Android APK package
       run: |
-        xmake install -o build
-        
-    - name: List build output
-      run: |
-        echo "Build directory contents:"
-        ls -lah build/
-        find build -name "*.apk" -o -name "*.so"
+        xmake package -v
         
     - name: Upload APK
       uses: actions/upload-artifact@v4
@@ -86,16 +80,9 @@ jobs:
         name: raycpp-android-arm64-v8a
         path: |
           build/*.apk
-          build/**/*.apk
+          build/**/raydemo_android.apk
         if-no-files-found: error
         retention-days: 30
         
-    - name: Upload shared library
-      uses: actions/upload-artifact@v4
-      with:
-        name: raycpp-android-lib-arm64-v8a
-        path: |
-          build/**/*.so
-        if-no-files-found: warn
-        retention-days: 30
+
 
