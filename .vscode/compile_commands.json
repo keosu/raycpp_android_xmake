@@ -1,11 +1,6 @@
 [
 {
   "directory": "c:\\Users\\jianlong\\learn\\raycpp_android_xmake",
-  "arguments": ["C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang.exe", "-c", "--sysroot=C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot", "-isystem", "C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot\\usr\\include\\aarch64-linux-android", "-Qunused-arguments", "--target=aarch64-none-linux-android21", "-fPIC", "-Oz", "-isystem", "C:\\Users\\jianlong\\AppData\\Local\\.xmake\\packages\\r\\raylib\\5.5\\f7ba2a99209e4443a5a31312ae3f6941\\include", "-DNDEBUG", "-o", "build\\.objs\\raydemo_android\\android\\arm64-v8a\\release\\f3f7ddc471be42c7be0c60898afde5fe\\android_native_app_glue.c.o", "C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\sources\\android\\native_app_glue\\android_native_app_glue.c"],
-  "file": "C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\sources\\android\\native_app_glue\\android_native_app_glue.c"
-},
-{
-  "directory": "c:\\Users\\jianlong\\learn\\raycpp_android_xmake",
   "arguments": ["C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang++.exe", "-c", "--sysroot=C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot", "-isystem", "C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot\\usr\\include\\aarch64-linux-android", "-Qunused-arguments", "--target=aarch64-none-linux-android21", "-fPIC", "-Oz", "-std=c++17", "-isystem", "C:\\Users\\jianlong\\AppData\\Local\\.xmake\\packages\\r\\raylib\\5.5\\f7ba2a99209e4443a5a31312ae3f6941\\include", "-DNDEBUG", "-o", "build\\.objs\\raydemo_android\\android\\arm64-v8a\\release\\src\\main.cpp.o", "src\\main.cpp"],
   "file": "src\\main.cpp"
 },
@@ -13,4 +8,9 @@
   "directory": "c:\\Users\\jianlong\\learn\\raycpp_android_xmake",
   "arguments": ["C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang++.exe", "-c", "--sysroot=C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot", "-isystem", "C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot\\usr\\include\\aarch64-linux-android", "-Qunused-arguments", "--target=aarch64-none-linux-android21", "-fPIC", "-Oz", "-std=c++17", "-isystem", "C:\\Users\\jianlong\\AppData\\Local\\.xmake\\packages\\r\\raylib\\5.5\\f7ba2a99209e4443a5a31312ae3f6941\\include", "-DNDEBUG", "-o", "build\\.objs\\raydemo_android\\android\\arm64-v8a\\release\\android\\jni_interface.cxx.o", "android\\jni_interface.cxx"],
   "file": "android\\jni_interface.cxx"
+},
+{
+  "directory": "c:\\Users\\jianlong\\learn\\raycpp_android_xmake",
+  "arguments": ["C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\clang.exe", "-c", "--sysroot=C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot", "-isystem", "C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\toolchains\\llvm\\prebuilt\\windows-x86_64\\sysroot\\usr\\include\\aarch64-linux-android", "-Qunused-arguments", "--target=aarch64-none-linux-android21", "-fPIC", "-Oz", "-isystem", "C:\\Users\\jianlong\\AppData\\Local\\.xmake\\packages\\r\\raylib\\5.5\\f7ba2a99209e4443a5a31312ae3f6941\\include", "-DNDEBUG", "-o", "build\\.objs\\raydemo_android\\android\\arm64-v8a\\release\\f3f7ddc471be42c7be0c60898afde5fe\\android_native_app_glue.c.o", "C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\sources\\android\\native_app_glue\\android_native_app_glue.c"],
+  "file": "C:\\Users\\jianlong\\Progs\\android-ndk-r27d\\sources\\android\\native_app_glue\\android_native_app_glue.c"
 }]
