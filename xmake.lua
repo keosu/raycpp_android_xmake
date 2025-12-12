@@ -9,11 +9,12 @@ if is_plat("android") then
 end
 
 add_requires("raylib-cpp 5.5.0")
+add_requires("raylib 5.5.0")
 
 target("cppray")
     set_kind("binary")
     set_languages("c++17")
-    add_files("src/*.cpp") 
+    add_files("src/main.cpp") 
     add_packages("raylib-cpp")
     
     -- Android 特定配置
@@ -34,3 +35,10 @@ target("cppray")
             activity_name = "android.app.NativeActivity"
         })
     end
+
+target("test")
+    set_kind("binary")
+    set_languages("c++17")
+    add_files("src/test.cpp") 
+    add_packages("raylib")
+    

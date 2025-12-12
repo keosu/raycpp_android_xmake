@@ -355,6 +355,10 @@ private:
     float enemySpawnTimer;
     float difficultyTimer;
     int wave;
+    raylib::Font customFont;
+    raylib::Font emojiFont;
+    bool fontLoaded;
+    bool emojiFontLoaded;
     
 public:
     SpaceShooter() {
@@ -364,6 +368,25 @@ public:
         enemySpawnTimer = 0;
         difficultyTimer = 0;
         wave = 1;
+        fontLoaded = false;
+        emojiFontLoaded = false;
+        
+        // Load custom font
+        customFont = LoadFontEx("assets/fonts/siyuan.otf", 32, nullptr, 256);
+        if (customFont.texture.id != 0) {
+            fontLoaded = true;
+        }
+        
+        // Load emoji font
+        emojiFont = LoadFontEx("assets/fonts/siyuan.otf", 32, nullptr, 256);
+        if (emojiFont.texture.id != 0) {
+            emojiFontLoaded = true;
+        }
+    }
+    
+    ~SpaceShooter() {
+        UnloadFont(customFont);
+        UnloadFont(emojiFont);
     }
     
     void Reset() {
@@ -578,43 +601,43 @@ public:
         int textSize = (int)(16 * scale);
         
         // Title
-        const char* title = "SPACE DEFENDER";
+        const char* title = "Space Defender 🛰️";
         int titleWidth = MeasureText(title, titleSize);
-        DrawText(title, centerX - titleWidth/2, (int)(150 * scale), titleSize, SKYBLUE);
-        DrawText(title, centerX - titleWidth/2 - 2, (int)(148 * scale), titleSize, BLUE);
+        DrawTextWithEmoji(title, centerX - titleWidth/2, (int)(150 * scale), titleSize, SKYBLUE);
+        DrawTextWithEmoji(title, centerX - titleWidth/2 - 2, (int)(148 * scale), titleSize, BLUE);
         
         // Instructions
-        const char* instruction = "PRESS SPACE TO START";
+        const char* instruction = "按空格开始游戏 🚀";
 #ifdef PLATFORM_ANDROID
-        instruction = "TAP TO START";
+        instruction = "TAP TO START 🚀";
 #endif
         int instrWidth = MeasureText(instruction, instructionSize);
-        DrawText(instruction, centerX - instrWidth/2, (int)(300 * scale), instructionSize, WHITE);
+        DrawTextWithEmoji(instruction, centerX - instrWidth/2, (int)(300 * scale), instructionSize, WHITE);
         
         // Controls
-        const char* controlsTitle = "CONTROLS:";
+        const char* controlsTitle = "CONTROLS 🎮:";
         int controlsTitleWidth = MeasureText(controlsTitle, (int)(20 * scale));
-        DrawText(controlsTitle, centerX - controlsTitleWidth/2, (int)(380 * scale), (int)(20 * scale), YELLOW);
+        DrawTextWithEmoji(controlsTitle, centerX - controlsTitleWidth/2, (int)(380 * scale), (int)(20 * scale), YELLOW);
         
 #ifdef PLATFORM_ANDROID
         int y = (int)(410 * scale);
-        const char* touch = "Touch to move";
-        const char* shoot = "Auto shoot";
+        const char* touch = "Touch to move 🖱️";
+        const char* shoot = "Auto shoot 🔫";
         int touchWidth = MeasureText(touch, textSize);
         int shootWidth = MeasureText(shoot, textSize);
-        DrawText(touch, centerX - touchWidth/2, y, textSize, WHITE);
-        DrawText(shoot, centerX - shootWidth/2, y + (int)(25 * scale), textSize, WHITE);
+        DrawTextWithEmoji(touch, centerX - touchWidth/2, y, textSize, WHITE);
+        DrawTextWithEmoji(shoot, centerX - shootWidth/2, y + (int)(25 * scale), textSize, WHITE);
 #else
         int y = (int)(410 * scale);
-        const char* move = "WASD or Arrow Keys - Move";
-        const char* shoot = "SPACE - Shoot";
-        const char* pause = "P - Pause";
+        const char* move = "WASD or Arrow Keys - Move 🎮";
+        const char* shoot = "SPACE - Shoot 🔫";
+        const char* pause = "P - Pause ⏸️";
         int moveWidth = MeasureText(move, textSize);
         int shootWidth = MeasureText(shoot, textSize);
         int pauseWidth = MeasureText(pause, textSize);
-        DrawText(move, centerX - moveWidth/2, y, textSize, WHITE);
-        DrawText(shoot, centerX - shootWidth/2, y + (int)(25 * scale), textSize, WHITE);
-        DrawText(pause, centerX - pauseWidth/2, y + (int)(50 * scale), textSize, WHITE);
+        DrawTextWithEmoji(move, centerX - moveWidth/2, y, textSize, WHITE);
+        DrawTextWithEmoji(shoot, centerX - shootWidth/2, y + (int)(25 * scale), textSize, WHITE);
+        DrawTextWithEmoji(pause, centerX - pauseWidth/2, y + (int)(50 * scale), textSize, WHITE);
 #endif
         
         // Animated ship
@@ -653,14 +676,14 @@ public:
         int margin = (int)(10 * scale);
         
         // Score
-        DrawText(TextFormat("SCORE: %d", player.score), margin, margin, scoreSize, YELLOW);
+        DrawTextWithEmoji("得分 🏆: %d", margin, margin, scoreSize, YELLOW, player.score);
         
         // Wave
-        DrawText(TextFormat("WAVE: %d", wave), margin, margin + scoreSize + 5, waveSize, SKYBLUE);
+        DrawTextWithEmoji("轮次 🌊: %d", margin, margin + scoreSize + 5, waveSize, SKYBLUE, wave);
         
         // Health
         int healthX = GetGameWidth() - (int)(180 * scale);
-        DrawText("HEALTH:", healthX, margin, scoreSize, RED);
+        DrawTextWithEmoji("Health ❤️:", healthX, margin, scoreSize, RED);
         for (int i = 0; i < player.health; i++) {
             DrawRectangle(healthX + (int)(90 * scale) + i * (int)(18 * scale), 
                          margin + (int)(3 * scale), 
@@ -683,15 +706,15 @@ public:
         int centerY = GetGameHeight() / 2;
         float scale = GetScaleFactor();
         
-        const char* paused = "PAUSED";
+        const char* paused = "PAUSED ⏸️";
         int pausedSize = (int)(60 * scale);
         int pausedWidth = MeasureText(paused, pausedSize);
-        DrawText(paused, centerX - pausedWidth/2, centerY - (int)(40 * scale), pausedSize, WHITE);
+        DrawTextWithEmoji(paused, centerX - pausedWidth/2, centerY - (int)(40 * scale), pausedSize, WHITE);
         
-        const char* cont = "Press P to continue";
+        const char* cont = "Press P to continue ▶️";
         int contSize = (int)(20 * scale);
         int contWidth = MeasureText(cont, contSize);
-        DrawText(cont, centerX - contWidth/2, centerY + (int)(40 * scale), contSize, LIGHTGRAY);
+        DrawTextWithEmoji(cont, centerX - contWidth/2, centerY + (int)(40 * scale), contSize, LIGHTGRAY);
     }
     
     void DrawGameOver() {
@@ -700,29 +723,83 @@ public:
         int centerY = GetGameHeight() / 2;
         float scale = GetScaleFactor();
         
-        const char* gameOver = "GAME OVER";
-        int gameOverSize = (int)(60 * scale);
-        int gameOverWidth = MeasureText(gameOver, gameOverSize);
-        DrawText(gameOver, centerX - gameOverWidth/2, centerY - (int)(80 * scale), gameOverSize, RED);
+        // Use DrawTextWithEmoji for the game over title with skull emoji
+        DrawTextWithEmoji("Game Over 💀", centerX - 150, centerY - (int)(80 * scale), (int)(60 * scale), RED);
         
-        const char* finalScore = TextFormat("Final Score: %d", player.score);
-        int scoreSize = (int)(30 * scale);
-        int scoreWidth = MeasureText(finalScore, scoreSize);
-        DrawText(finalScore, centerX - scoreWidth/2, centerY + (int)(20 * scale), scoreSize, YELLOW);
+        // Use DrawTextWithEmoji for final score with trophy emoji
+        DrawTextWithEmoji("Final Score 🏆: %d", centerX - 150, centerY + (int)(20 * scale), 30 * scale, YELLOW, player.score);
         
-        const char* waveText = TextFormat("Wave Reached: %d", wave);
-        int waveSize = (int)(25 * scale);
-        int waveWidth = MeasureText(waveText, waveSize);
-        DrawText(waveText, centerX - waveWidth/2, centerY + (int)(60 * scale), waveSize, SKYBLUE);
+        // Use DrawTextWithEmoji for wave reached with wave emoji
+        DrawTextWithEmoji("Wave Reached 🌊: %d", centerX - 150, centerY + (int)(60 * scale), 25 * scale, SKYBLUE, wave);
                  
-        const char* restart = "Press SPACE to return to menu";
+        // Use DrawTextWithEmoji for restart instruction with arrow emoji
 #ifdef PLATFORM_ANDROID
-        restart = "Tap to return to menu";
+        DrawTextWithEmoji("Tap to return to menu 👈", centerX - 150, centerY + (int)(120 * scale), (int)(20 * scale), WHITE);
+#else
+        DrawTextWithEmoji("Press SPACE to return to menu ↩️", centerX - 150, centerY + (int)(120 * scale), (int)(20 * scale), WHITE);
 #endif
-        int restartSize = (int)(20 * scale);
-        int restartWidth = MeasureText(restart, restartSize);
-        DrawText(restart, centerX - restartWidth/2, centerY + (int)(120 * scale), restartSize, WHITE);
     }
+    
+    void DrawTextWithFont(const char* text, int x, int y, int fontSize, raylib::Color color) {
+        if (fontLoaded && fontSize >= 14) {
+            float spacing = fontSize / 32.0f;
+            ::DrawTextEx(customFont, text, raylib::Vector2(x, y), fontSize, spacing, color);
+            std::cout << "Drawing text with custom font: " << text << std::endl;
+        } else {
+            ::DrawText(text, x, y, fontSize, color);
+            std::cout << "Drawing text with default font: " << text << std::endl;
+        }
+    }
+    
+    void DrawTextWithEmoji(const char* text, int x, int y, int fontSize, raylib::Color color) {
+        // Try to detect and render emojis separately
+        if (emojiFontLoaded) {
+            // Simple emoji detection (Unicode range check would be better)
+            bool hasEmoji = false;
+            for (const char* p = text; *p; p++) {
+                if ((unsigned char)*p > 0xF0) {  // Potential emoji start
+                    hasEmoji = true;
+                    break;
+                }
+            }
+            
+            if (hasEmoji) {
+                float spacing = fontSize / 32.0f;
+                ::DrawTextEx(emojiFont, text, raylib::Vector2(x, y), fontSize, spacing, color);
+                return;
+            }
+        }
+        
+        // Fall back to regular text
+        DrawTextWithFont(text, x, y, fontSize, color);
+    }
+    
+    void DrawTextWithEmoji(const char* format, int x, int y, int fontSize, raylib::Color color, int value) {
+        char buffer[256];
+        snprintf(buffer, sizeof(buffer), format, value);
+        
+        // Try to detect and render emojis separately
+        if (emojiFontLoaded) {
+            // Simple emoji detection (Unicode range check would be better)
+            bool hasEmoji = false;
+            for (const char* p = buffer; *p; p++) {
+                if ((unsigned char)*p > 0xF0) {  // Potential emoji start
+                    hasEmoji = true;
+                    break;
+                }
+            }
+            
+            if (hasEmoji) {
+                float spacing = fontSize / 32.0f;
+                ::DrawTextEx(emojiFont, buffer, raylib::Vector2(x, y), fontSize, spacing, color);
+                return;
+            }
+        }
+        
+        // Fall back to regular text
+        DrawTextWithFont(buffer, x, y, fontSize, color);
+    }
+
 };
 
 int main() {
