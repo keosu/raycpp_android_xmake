@@ -34,7 +34,6 @@ function main (target)
 
     -- Add glue file and jni interface file to target
     local conf = target:extraconf("rules", "android.native_app")
-    target:add("files", conf.jni_interface)
     target:add("files", native_app_glue_file)
     target:add("includedirs", native_app_glue_path)
 

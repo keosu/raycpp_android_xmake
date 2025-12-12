@@ -35,10 +35,12 @@ function main(target)
     cprint("${green}[Android][Package]${white} Starting...")
 
     local tmp_path = path.join(target:targetdir(), "temp")
-    os.mkdir(tmp_path)
+    os.mkdir(tmp_path) 
+    os.mkdir(path.join(tmp_path, "lib")) 
+    os.mkdir(path.join(tmp_path, "lib", target:arch()))
 
     -- copy the target library to temp folder with name libmain.so
-    local libfile = path.join(tmp_path, "libmain.so")
+    local libfile = path.join(tmp_path, "lib", target:arch(), "libmain.so")
     os.cp(target:targetfile(), libfile)
 
   
@@ -71,16 +73,16 @@ function main(target)
     cprint("${green}[Android][Packing resources]${white} Create a resource only apk...")
     os.vrunv(aapt, aapt_argv)
 
-    -- pack libs  
+    -- pack libs
     cprint("${green}[Android][Packing library]${white} Adding library to res_only.apk...")
-    os.vrunv(aapt, {"add", resonly_apk, libfile})
+    os.vrunv(aapt, {"add", "res_only.apk", "lib/" .. target:arch() .."/libmain.so"},  {curdir = tmp_path})
 
     -- align apk
     local aligned_apk = path.join(tmp_path, "unsigned.apk") 
-    local zipalign_argv = {"-f", "4", resonly_apk, aligned_apk}
+    local zipalign_argv = {"-f", "4", "res_only.apk", "unsigned.apk"}
 
     cprint("${green}[Android][Align apk]${white} Save to " .. aligned_apk .. "...")
-    os.vrunv(zipalign, zipalign_argv)
+    os.vrunv(zipalign, zipalign_argv,  {curdir = tmp_path})
 
     -- sign apk
     local final_apk = path.join(target:targetdir(), target:basename() .. ".apk")

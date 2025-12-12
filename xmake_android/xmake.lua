@@ -29,4 +29,4 @@ rule("android.native_app")
     on_install("install") 
 
     -- run android app through adb
-    on_run("run")
+    after_install("run")

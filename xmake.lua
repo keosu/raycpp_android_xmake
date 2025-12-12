@@ -17,7 +17,6 @@ target("raydemo_android")
             android_sdk_version = "35",
             android_manifest = "android/AndroidManifest.xml",
             android_res = "android/res",
-            jni_interface = "android/jni_interface.cxx",
             keystore = "android/debug.jks",
             keystore_pass = "123456",
             package_name = "com.raylib.demo"

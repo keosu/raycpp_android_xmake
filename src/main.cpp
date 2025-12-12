@@ -10,7 +10,7 @@ int main() {
 
     ClearBackground(BLACK);
 
-    DrawText("Hello, xmake for raylib android!", 250, 250, 25, BLUE);
+    DrawText("Hello, xmake for raylib android!", 250, 250, 35, BLUE);
 
     EndDrawing();
   }
