@@ -1,9 +1,8 @@
+set_xmakever("3.0.6")
+
 add_rules("mode.debug", "mode.release")
 
--- 包含 androidcpp 规则
-includes("xmake_android")
 
--- 添加 Android NDK 工具链支持
 if is_plat("android") then
     set_toolchains("ndk", {sdkver = "21"})
 end
@@ -16,21 +15,15 @@ target("cppray")
     add_files("src/*.cpp") 
     add_packages("raylib-cpp")
     
-    -- Android 特定配置
-    if is_plat("android") then 
-        
-        set_kind("shared") 
-        add_defines("PLATFORM_ANDROID") -- raylib need this for android
- 
-        add_rules("android.cpp", {
+    if is_plat("android") then
+        add_rules("android.native_app", {
             android_sdk_version = "35",
             android_manifest = "android/AndroidManifest.xml",
             android_res = "android/res",
-            keystore = "android/debug.jks",
-            jni_interface = "android/jni_interface.cxx",
             android_assets = "assets",
-            apk_output_path = "build",
+            keystore = "android/debug.jks",
+            keystore_pass = "123456",
             package_name = "com.game.raygame",
-            activity_name = "android.app.NativeActivity"
         })
     end
+ 
